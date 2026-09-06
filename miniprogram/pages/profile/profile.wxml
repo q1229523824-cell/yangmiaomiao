@@ -1,0 +1,159 @@
+<view class="page">
+  <view class="header-block">
+    <text class="title">👩👨 双人档案</text>
+    <text class="subtitle">身高、体重和目标都可以修改。数据只保存在当前设备的微信中。</text>
+  </view>
+
+  <view class="status-card status-card--error" wx:if="{{pageError}}">
+    <text>⚠️ {{pageError}}</text>
+    <button wx:if="{{loadFailed}}" class="retry-button" bindtap="onRetryLoad" disabled="{{busy}}">重新读取</button>
+  </view>
+  <view class="card loading-card" wx:if="{{loading}}">正在读取本地档案…</view>
+
+  <block wx:if="{{!loading && !loadFailed}}">
+    <view class="card member-card" wx:for="{{drafts}}" wx:key="id" wx:for-item="profile" wx:for-index="profileIndex">
+      <view class="member-heading">
+        <text class="member-title">{{profile.emoji}} 第 {{profileIndex + 1}} 位成员</text>
+        <text class="member-subtitle">每个人的档案和目标独立计算</text>
+      </view>
+
+      <view class="field-block">
+        <view class="field">
+          <text class="field__label">称呼</text>
+          <input
+            class="field__control {{profile.errors.name ? 'field__control--error' : ''}}"
+            value="{{profile.name}}"
+            data-index="{{profileIndex}}"
+            data-field="name"
+            bindinput="onDraftInput"
+            disabled="{{busy}}"
+            maxlength="12"
+            placeholder="如：喵喵"
+          />
+        </view>
+        <text class="field-error" wx:if="{{profile.errors.name}}">{{profile.errors.name}}</text>
+      </view>
+
+      <view class="field-block">
+        <view class="field">
+          <text class="field__label">身高</text>
+          <view class="number-control {{profile.errors.heightCm ? 'number-control--error' : ''}}">
+            <input
+              class="number-control__input"
+              type="digit"
+              value="{{profile.heightCm}}"
+              data-index="{{profileIndex}}"
+              data-field="heightCm"
+              bindinput="onDraftInput"
+              disabled="{{busy}}"
+              maxlength="6"
+              placeholder="100–230"
+            />
+            <text class="number-control__unit">cm</text>
+          </view>
+        </view>
+        <text class="field-error" wx:if="{{profile.errors.heightCm}}">{{profile.errors.heightCm}}</text>
+      </view>
+
+      <view class="field-block">
+        <view class="field">
+          <text class="field__label">体重</text>
+          <view class="number-control {{profile.errors.weightKg ? 'number-control--error' : ''}}">
+            <input
+              class="number-control__input"
+              type="digit"
+              value="{{profile.weightKg}}"
+              data-index="{{profileIndex}}"
+              data-field="weightKg"
+              bindinput="onDraftInput"
+              disabled="{{busy}}"
+              maxlength="6"
+              placeholder="30–300"
+            />
+            <text class="number-control__unit">kg</text>
+          </view>
+        </view>
+        <text class="field-error" wx:if="{{profile.errors.weightKg}}">{{profile.errors.weightKg}}</text>
+      </view>
+
+      <view class="field-block">
+        <view class="field">
+          <text class="field__label">年龄</text>
+          <view class="number-control {{profile.errors.ageYears ? 'number-control--error' : ''}}">
+            <input
+              class="number-control__input"
+              type="number"
+              value="{{profile.ageYears}}"
+              data-index="{{profileIndex}}"
+              data-field="ageYears"
+              bindinput="onDraftInput"
+              disabled="{{busy}}"
+              maxlength="3"
+              placeholder="16–100"
+            />
+            <text class="number-control__unit">岁</text>
+          </view>
+        </view>
+        <text class="field-error" wx:if="{{profile.errors.ageYears}}">{{profile.errors.ageYears}}</text>
+      </view>
+
+      <view class="field-block field-block--picker">
+        <text class="picker-label">日常活动量</text>
+        <picker
+          mode="selector"
+          range="{{activityOptions}}"
+          range-key="label"
+          value="{{profile.activityIndex}}"
+          data-index="{{profileIndex}}"
+          bindchange="onActivityChange"
+          disabled="{{busy}}"
+        >
+          <view class="picker-control">
+            <view class="picker-control__content">
+              <text class="picker-control__value">{{profile.activityLabel}}</text>
+              <text class="picker-control__description">{{profile.activityDescription}}</text>
+            </view>
+            <text class="picker-control__arrow">›</text>
+          </view>
+        </picker>
+      </view>
+
+      <view class="field-block field-block--picker">
+        <text class="picker-label">目标强度</text>
+        <picker
+          mode="selector"
+          range="{{targetOptions}}"
+          range-key="label"
+          value="{{profile.targetIndex}}"
+          data-index="{{profileIndex}}"
+          bindchange="onTargetChange"
+          disabled="{{busy}}"
+        >
+          <view class="picker-control">
+            <view class="picker-control__content">
+              <text class="picker-control__value">{{profile.targetLabel}}</text>
+              <text class="picker-control__description">{{profile.targetDescription}}</text>
+            </view>
+            <text class="picker-control__arrow">›</text>
+          </view>
+        </picker>
+      </view>
+    </view>
+
+    <view class="save-panel">
+      <text class="unsaved-message" wx:if="{{hasUnsavedChanges}}">有修改尚未保存</text>
+      <button
+        class="save-button {{saveDisabled ? 'save-button--disabled' : ''}}"
+        bindtap="onSave"
+        loading="{{busy}}"
+        disabled="{{saveDisabled}}"
+      >保存档案</button>
+      <text class="saved-message" wx:if="{{savedMessage}}">{{savedMessage}}</text>
+    </view>
+
+    <view class="card notice">
+      活动量用于估算每天消耗，目标强度用于设置热量范围。结果仅供日常健身饮食参考，不替代医生或注册营养师建议。修改档案后，已有菜单不会被自动替换。
+    </view>
+    <button class="clear-button {{busy ? 'clear-button--disabled' : ''}}" bindtap="onClearData" disabled="{{busy}}">清除这台设备上的全部数据</button>
+  </block>
+</view>

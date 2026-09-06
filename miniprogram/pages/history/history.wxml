@@ -1,0 +1,55 @@
+<view class="page">
+  <view class="header-block">
+    <text class="title">🕘 历史菜单</text>
+    <text class="subtitle">最多保留 60 份，全部存放在当前设备。恢复当时的普通偏好，但不会解除当前过敏原保护。</text>
+  </view>
+
+  <view class="card status-card" wx:if="{{loading}}">
+    <text>正在读取本地历史…</text>
+  </view>
+
+  <view class="card error-card" wx:if="{{!loading && errorMessage}}">
+    <text class="error-text">{{errorMessage}}</text>
+    <button class="retry-button" bindtap="onRetry" disabled="{{busy}}">重新读取</button>
+  </view>
+
+  <view class="card empty-card" wx:if="{{!loading && !errorMessage && items.length === 0}}">
+    <text class="empty-title">还没有历史菜单</text>
+    <text class="empty-text">到“今日”页生成或更换菜单后，快照会自动保存在这里。</text>
+    <button class="empty-action" bindtap="onGoToday">去生成菜单</button>
+  </view>
+
+  <view wx:if="{{!loading && items.length > 0}}">
+    <view class="card history-card" wx:for="{{items}}" wx:key="id" wx:for-item="item">
+      <view class="card-heading">
+        <view>
+          <text class="date">{{item.dateLabel}}</text>
+          <text class="created-at">生成于 {{item.createdAtLabel}}</text>
+        </view>
+        <text class="current-badge" wx:if="{{item.isCurrent}}">当前使用</text>
+      </view>
+
+      <view class="meal-list">
+        <view class="meal-row" wx:for="{{item.meals}}" wx:key="type" wx:for-item="meal">
+          <text class="meal-label">{{meal.label}}</text>
+          <text class="meal-name">{{meal.name}}</text>
+        </view>
+      </view>
+
+      <view class="calorie-list">
+        <view class="calorie" wx:for="{{item.calories}}" wx:key="memberId" wx:for-item="calorie">
+          <text>{{calorie.emoji}} {{calorie.memberName}}</text>
+          <text class="calorie-value">{{calorie.value}}</text>
+        </view>
+      </view>
+
+      <button
+        class="restore-button {{item.isCurrent ? 'restore-button--current' : ''}}"
+        data-plan-id="{{item.id}}"
+        bindtap="onRestoreTap"
+        disabled="{{busy || item.isCurrent}}"
+        loading="{{busy && restoringPlanId === item.id}}"
+      >{{item.isCurrent ? '正在使用' : (busy && restoringPlanId === item.id ? '正在恢复…' : '恢复这份菜单')}}</button>
+    </view>
+  </view>
+</view>

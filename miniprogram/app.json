@@ -1,0 +1,28 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/shopping/shopping",
+    "pages/profile/profile",
+    "pages/history/history"
+  ],
+  "window": {
+    "navigationBarTitleText": "双人健身饮食",
+    "navigationBarBackgroundColor": "#17142f",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0f0c29",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#aaa8b8",
+    "selectedColor": "#ffd200",
+    "backgroundColor": "#17142f",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "今日" },
+      { "pagePath": "pages/shopping/shopping", "text": "购物" },
+      { "pagePath": "pages/profile/profile", "text": "档案" },
+      { "pagePath": "pages/history/history", "text": "历史" }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

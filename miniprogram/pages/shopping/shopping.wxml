@@ -1,0 +1,35 @@
+<view class="page">
+  <view class="header-block">
+    <text class="title">🛒 两个人需要准备</text>
+    <text class="subtitle" wx:if="{{hasPlan}}">菜单日期 {{date}} · 勾选状态仅保存在本机</text>
+  </view>
+
+  <view class="card empty" wx:if="{{loading}}">正在读取本地购物清单…</view>
+  <view class="card error-card" wx:if="{{!loading && errorMessage}}">
+    <text>⚠️ {{errorMessage}}</text>
+    <button class="retry-button" bindtap="onRetry" disabled="{{busy}}">重新读取</button>
+  </view>
+  <view class="card warning-card" wx:if="{{!loading && planWarning}}">
+    <text>⚠️ {{planWarning}}</text>
+    <button wx:if="{{!canUsePlan}}" class="action-button" bindtap="onGoToday">回到今日调整</button>
+  </view>
+  <view class="card empty" wx:if="{{!loading && !errorMessage && !hasPlan}}">
+    <text>还没有菜单，请先生成一份共同菜单。</text>
+    <button class="action-button" bindtap="onGoToday">去生成菜单</button>
+  </view>
+  <view class="saving-hint" wx:if="{{busy}}">正在保存勾选状态…</view>
+  <view class="card empty" wx:if="{{!loading && !errorMessage && canUsePlan && !items.length}}">当前菜单没有需要购买的食材。</view>
+
+  <checkbox-group bindchange="onToggle" wx:if="{{!loading && !errorMessage && canUsePlan}}">
+    <label class="card shopping-item {{item.checked ? 'shopping-item--checked' : ''}}" wx:for="{{items}}" wx:key="foodId">
+      <checkbox value="{{item.foodId}}" checked="{{item.checked}}" color="#f5b800" disabled="{{busy}}" />
+      <view class="shopping-content">
+        <view class="shopping-main">
+          <text>{{item.name}}</text>
+          <text class="grams">{{item.gramsText}}</text>
+        </view>
+        <text class="detail">{{item.detail}}</text>
+      </view>
+    </label>
+  </checkbox-group>
+</view>

@@ -1,0 +1,87 @@
+<view class="page">
+  <view class="hero">
+    <text class="hero__title">🍳 双人家常健身饮食助手</text>
+    <text class="hero__subtitle">同锅同菜 · 各自分量 · 做饭前直接称生重</text>
+  </view>
+
+  <view class="card loading-card" wx:if="{{loading}}">正在读取本地菜单…</view>
+
+  <view class="toolbar" wx:if="{{!loading && dateText}}">
+    <text class="date">📅 {{dateText}}</text>
+    <button class="primary-button" bindtap="onGenerateTap" loading="{{busy}}" disabled="{{busy}}">{{generateButtonText}}</button>
+  </view>
+
+  <view wx:if="{{errorMessage}}" class="error-card">
+    <text>⚠️ {{errorMessage}}</text>
+    <button wx:if="{{!busy && !dateText}}" class="retry-button" bindtap="onRetryLoad">重新读取</button>
+  </view>
+  <view wx:if="{{!loading && planNotice}}" class="plan-notice {{planNoticeIsWarning ? 'plan-notice--warning' : ''}}">{{planNotice}}</view>
+  <view wx:if="{{!loading && planBlockedByPreferences}}" class="card blocked-menu">为避免误用，旧菜单已隐藏。请删除部分冲突偏好，或调整后重新生成。</view>
+
+  <view class="profile-grid" wx:if="{{!loading && dateText}}">
+    <view class="card profile-card" wx:for="{{profiles}}" wx:key="id" wx:for-item="profile">
+      <text class="section-title">{{profile.emoji}} {{profile.name}} · 今日概览</text>
+      <view class="stats-grid">
+        <view class="stat" wx:for="{{profile.stats}}" wx:key="label" wx:for-item="stat">
+          <text class="stat__label">{{stat.label}}</text>
+          <text class="stat__value">{{stat.value}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card assistant-card" wx:if="{{!loading && dateText}}">
+    <text class="section-title">🤖 离线饮食小助手</text>
+    <view class="locks">
+      <text class="lock">🔒 同菜不同量</text>
+      <text class="lock">🔒 禁忌优先</text>
+      <text class="lock">🔒 本地计算</text>
+    </view>
+    <view class="assistant-reply">{{assistantReply}}</view>
+    <view class="chips">
+      <button class="chip" size="mini" data-text="不要番茄" bindtap="onQuickPreference" disabled="{{busy}}">不要番茄</button>
+      <button class="chip" size="mini" data-text="今天不想吃鸡胸" bindtap="onQuickPreference" disabled="{{busy}}">不要鸡胸</button>
+      <button class="chip" size="mini" data-text="今天想吃牛肉" bindtap="onQuickPreference" disabled="{{busy}}">想吃牛肉</button>
+      <button class="chip" size="mini" data-text="今天不喝蛋白粉" bindtap="onQuickPreference" disabled="{{busy}}">不喝蛋白粉</button>
+      <button class="chip" size="mini" data-text="晚餐清淡一点" bindtap="onQuickPreference" disabled="{{busy}}">晚餐清淡</button>
+      <button class="chip" size="mini" data-text="空气炸锅优先" bindtap="onQuickPreference" disabled="{{busy}}">空气炸锅</button>
+    </view>
+    <view class="input-row">
+      <input class="preference-input" value="{{preferenceInput}}" bindinput="onPreferenceInput" confirm-type="send" bindconfirm="onPreferenceSubmit" disabled="{{busy}}" maxlength="80" cursor-spacing="18" placeholder="如：不要鱼，想吃猪里脊" />
+      <button class="send-button" bindtap="onPreferenceSubmit" loading="{{busy}}" disabled="{{busy || !preferenceInput}}">发送</button>
+    </view>
+    <view class="preference-tags" wx:if="{{preferenceTags.length}}">
+      <block wx:for="{{preferenceTags}}" wx:key="id">
+        <button wx:if="{{item.removable}}" class="preference-tag preference-tag--{{item.tone}}" size="mini" data-kind="{{item.kind}}" data-value="{{item.value}}" bindtap="onRemovePreference" disabled="{{busy}}">{{item.label}} ×</button>
+        <text wx:else class="preference-tag preference-tag--{{item.tone}}">{{item.label}}</text>
+      </block>
+    </view>
+    <view class="safety-note" wx:if="{{hasAllergens}}">🛡 这是两人共同菜单的过敏原保护。普通偏好清空不会解除；资料有误时请明确输入“取消牛奶过敏”这类指令。当前只检查列出的主食材，调味品配料和交叉污染仍需自行核对。</view>
+    <button wx:if="{{hasRemovablePreferences}}" class="clear-preferences" size="mini" bindtap="onClearPreferences" disabled="{{busy}}">清空普通偏好（保留过敏原）</button>
+  </view>
+
+  <view class="card meal-card" wx:for="{{meals}}" wx:key="id" wx:for-item="meal">
+    <view class="meal-heading">
+      <view>
+        <text class="section-title">{{meal.heading}}</text>
+        <text class="meal-name">{{meal.name}}</text>
+      </view>
+      <text class="meal-method">{{meal.method}}</text>
+    </view>
+    <view class="ingredient-row ingredient-row--header">
+      <text class="ingredient-name">食材</text>
+      <text class="portion" wx:for="{{profiles}}" wx:key="id" wx:for-item="profile">{{profile.name}}</text>
+    </view>
+    <view class="ingredient-row" wx:for="{{meal.rows}}" wx:key="id" wx:for-item="row">
+      <view class="ingredient-name">
+        <text>{{row.foodName}}</text>
+        <text class="weight-state">{{row.weightState}}</text>
+      </view>
+      <text class="portion" wx:for="{{row.portions}}" wx:key="memberId" wx:for-item="portion">{{portion.gramsText}}</text>
+    </view>
+    <view class="tip"><text class="tip__strong">好吃关键：</text>{{meal.tip}}</view>
+    <view class="tip" wx:if="{{meal.sauce}}">{{meal.sauce}}</view>
+  </view>
+
+  <view class="footer-note" wx:if="{{!loading && dateText}}">营养值按常见食材近似估算，仅供日常健身饮食参考。当前含 {{ingredientCount}} 种本地食材，断网也能生成菜单。</view>
+</view>

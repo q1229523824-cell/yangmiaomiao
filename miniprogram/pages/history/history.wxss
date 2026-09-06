@@ -1,0 +1,175 @@
+.header-block {
+  padding: 30rpx 8rpx 24rpx;
+}
+
+.title,
+.subtitle,
+.date,
+.created-at,
+.empty-title,
+.empty-text,
+.error-text {
+  display: block;
+}
+
+.title {
+  color: #ffd200;
+  font-size: 38rpx;
+  font-weight: 800;
+}
+
+.subtitle {
+  margin-top: 12rpx;
+  color: #aaa8b8;
+  font-size: 23rpx;
+  line-height: 1.55;
+}
+
+.status-card,
+.empty-card {
+  color: #aaa8b8;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.error-card {
+  color: #ffb8b8;
+  border-color: rgba(255, 90, 90, 0.24);
+  background: rgba(255, 90, 90, 0.08);
+}
+
+.error-text {
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.retry-button {
+  margin-top: 20rpx;
+  min-height: 72rpx;
+  color: #ffffff;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 24rpx;
+  line-height: 72rpx;
+}
+
+.empty-title {
+  color: #ffffff;
+  font-size: 29rpx;
+  font-weight: 700;
+}
+
+.empty-text {
+  margin-top: 10rpx;
+  font-size: 23rpx;
+}
+
+.empty-action {
+  margin-top: 22rpx;
+  min-height: 72rpx;
+  color: #1a1a2e;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #f7971e, #ffd200);
+  font-size: 25rpx;
+  font-weight: 700;
+  line-height: 72rpx;
+}
+
+.history-card {
+  padding: 26rpx;
+}
+
+.card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.date {
+  color: #ffffff;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.created-at {
+  margin-top: 7rpx;
+  color: #918fa5;
+  font-size: 21rpx;
+}
+
+.current-badge {
+  flex-shrink: 0;
+  padding: 7rpx 14rpx;
+  color: #1a1a2e;
+  border-radius: 999rpx;
+  background: #ffd200;
+  font-size: 20rpx;
+  font-weight: 700;
+}
+
+.meal-list {
+  margin-top: 22rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 18rpx;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.meal-row {
+  display: flex;
+  padding: 8rpx 0;
+  font-size: 24rpx;
+  line-height: 1.45;
+}
+
+.meal-label {
+  flex: none;
+  width: 76rpx;
+  color: #8ee7df;
+}
+
+.meal-name {
+  flex: 1;
+  color: #f1f0f5;
+}
+
+.calorie-list {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 18rpx;
+}
+
+.calorie {
+  display: flex;
+  width: 48.5%;
+  box-sizing: border-box;
+  flex-direction: column;
+  padding: 15rpx 17rpx;
+  color: #aaa8b8;
+  border-radius: 16rpx;
+  background: rgba(255, 255, 255, 0.055);
+  font-size: 22rpx;
+}
+
+.calorie-value {
+  margin-top: 5rpx;
+  color: #ffd76a;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+
+.restore-button {
+  margin-top: 22rpx;
+  min-height: 76rpx;
+  color: #1a1a2e;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #f7971e, #ffd200);
+  font-size: 25rpx;
+  font-weight: 700;
+  line-height: 76rpx;
+}
+
+.restore-button--current {
+  color: #8f8da2;
+  background: rgba(255, 255, 255, 0.08);
+  opacity: 0.72;
+}

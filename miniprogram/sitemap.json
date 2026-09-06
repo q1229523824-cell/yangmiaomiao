@@ -1,0 +1,4 @@
+{
+  "desc": "当前为家庭自用离线工具",
+  "rules": [{ "action": "disallow", "page": "*" }]
+}
