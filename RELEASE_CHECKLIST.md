@@ -63,11 +63,11 @@
 
 ## 6. GitHub 与体验版交付
 
-- [ ] `git status` 仅包含预期文件。
-- [ ] 检查暂存 diff，不含个人临时绝对路径、未经同意的身体数据、私钥、令牌或 `project.private.config.json`。
+- [x] `git status` 和提交文件清单仅包含预期文件。
+- [x] 暂存内容不含个人临时绝对路径、真人默认身体数据、私钥、令牌或 `project.private.config.json`。
 - [x] 源码默认双人身高/体重已替换为明确虚构、可编辑的演示值。
 - [ ] 由项目所有者决定许可证；未选择时不要擅自添加。
-- [ ] 本地分支名对齐为 `main`，使用普通 push 推送目标空仓库。
-- [ ] GitHub Actions 的 Node.js 22 `npm ci` 和 `npm run verify` 通过。
+- [x] 本地分支名对齐为 `main`，使用普通 push 推送目标空仓库，未 force push。
+- [x] GitHub Actions 的 Node.js 22 `npm ci` 和 `npm run verify` 已通过（run `34047890114`）。
 - [ ] 在真实 AppID 下上传体验版，并邀请指定体验成员扫码验证。
 - [ ] 保存体验版版本号、上传时间及回归结果。

@@ -26,10 +26,10 @@
 
 ## P0：GitHub 交付
 
-- [ ] 逐项检查 `git status` 和暂存 diff，确认没有凭据、个人临时路径或本地私有配置。
+- [x] 逐项检查 `git status` 和暂存 diff，确认没有凭据、个人临时路径或本地私有配置。
 - [x] 将源码默认身高/体重替换为明确虚构、可编辑的演示值，避免公开原型中的真人数据。
-- [ ] 将本地分支对齐为 `main`，绑定目标空仓库后使用普通 push；不要 force push。
-- [ ] 确认 GitHub Actions 的 `npm ci` 和 `npm run verify` 通过。
+- [x] 将本地分支对齐为 `main`，绑定目标空仓库并使用普通 push 完成首次推送；未使用 force push。
+- [x] GitHub Actions 的 `npm ci` 和 `npm run verify` 已通过（run `34047890114`）。
 - [ ] 由项目所有者决定是否添加开源许可证。
 
 ## 暂不属于离线第一版
