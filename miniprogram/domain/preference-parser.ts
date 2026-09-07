@@ -32,6 +32,7 @@ interface FoodMatch extends TextMatch {
 
 interface PolarityMarker extends TextMatch {
   polarity: Polarity;
+  reduction: boolean;
 }
 
 interface AllergenDefinition {
@@ -168,9 +169,91 @@ const ALLERGEN_DEFINITIONS: readonly AllergenDefinition[] = [
   { allergens: ["gluten"], label: "麸质", aliases: ["麸质", "小麦"] },
 ];
 
-const ALLERGY_CLAIM_PATTERN = /(?:会?过敏|不耐受|不能耐受)/;
-const ALLERGY_REMOVAL_PATTERN =
-  /(?:(?:取消|删除|移除|解除|清除|纠正).{0,12}(?:会?过敏|不耐受|不能耐受)|(?:确认|确定)?(?:不过敏|没有.{0,8}过敏|无.{0,8}过敏|可以耐受))/;
+type AllergenAction = "add" | "remove";
+
+/**
+ * Infer one allergen's action from its own immediate context.
+ *
+ * This intentionally avoids a fragment-wide “contains 不过敏” flag: one
+ * unpunctuated sentence may add an allergen and remove another. Removal stays
+ * deliberately conservative because a false removal weakens a safety rule.
+ */
+function inferAllergenAction(
+  text: string,
+  match: TextMatch,
+  allMatches: readonly TextMatch[],
+): AllergenAction | undefined {
+  const directAfter = text.slice(match.end);
+  if (
+    /^(?:不过敏|可以耐受|没有过敏(?:反应)?|无过敏(?:反应)?)/.test(
+      directAfter,
+    )
+  ) {
+    return "remove";
+  }
+
+  const orderedMatches = [...allMatches].sort(
+    (left, right) => left.start - right.start || right.end - left.end,
+  );
+  const matchIndex = orderedMatches.findIndex(
+    (candidate) => candidate.start === match.start && candidate.end === match.end,
+  );
+  let firstIndex = matchIndex;
+  let lastIndex = matchIndex;
+  const isListConnector = (value: string) =>
+    /^(?:和|及|与|跟|以及|、)$/.test(value.trim());
+  while (
+    firstIndex > 0 &&
+    isListConnector(
+      text.slice(orderedMatches[firstIndex - 1].end, orderedMatches[firstIndex].start),
+    )
+  ) {
+    firstIndex -= 1;
+  }
+  while (
+    lastIndex >= 0 &&
+    lastIndex < orderedMatches.length - 1 &&
+    isListConnector(
+      text.slice(orderedMatches[lastIndex].end, orderedMatches[lastIndex + 1].start),
+    )
+  ) {
+    lastIndex += 1;
+  }
+
+  const firstMatch = orderedMatches[firstIndex] ?? match;
+  const lastMatch = orderedMatches[lastIndex] ?? match;
+  const beforeList = text.slice(0, firstMatch.start);
+  const afterList = text.slice(lastMatch.end);
+  const sharedRemovalAfter = /^(?:都)?(?:不过敏|可以耐受)/.test(afterList);
+  const sharedClaimAfter = /^(?:都)?(?:不能耐受|不耐受|会过敏|过敏)/.test(
+    afterList,
+  );
+  const explicitRemovalBefore =
+    /(?:取消|删除|移除|解除|清除|纠正)(?:一下)?(?:对)?$/.test(beforeList) ||
+    /(?:没有|无)(?:对)?$/.test(beforeList);
+  if (sharedRemovalAfter || (sharedClaimAfter && explicitRemovalBefore)) {
+    return "remove";
+  }
+
+  const directClaimAfter = /^(?:不能耐受|不耐受|会过敏|过敏)/.test(
+    directAfter,
+  );
+  if (
+    directClaimAfter &&
+    /(?:取消|删除|移除|解除|清除|纠正)(?:一下)?(?:对)?$/.test(
+      text.slice(0, match.start),
+    )
+  ) {
+    return "remove";
+  }
+  if (
+    directClaimAfter &&
+    /(?:没有|无)(?:对)?$/.test(text.slice(0, match.start))
+  ) {
+    return "remove";
+  }
+  return directClaimAfter || sharedClaimAfter ? "add" : undefined;
+}
 
 const ALLERGEN_CORRECTION_LABELS: Readonly<Record<Allergen, string>> = {
   egg: "鸡蛋",
@@ -180,6 +263,11 @@ const ALLERGEN_CORRECTION_LABELS: Readonly<Record<Allergen, string>> = {
   shellfish: "虾贝类",
   gluten: "麸质",
 };
+
+// These are supported as reduction requests, never as positive preferences.
+// For ingredients the current model can only express a hard exclusion, so the
+// reply explicitly tells the user that “less” was saved as “none”.
+const REDUCTION_MARKERS = ["少放一点", "少加一点", "少放", "少加"] as const;
 
 function blockedAllergensForFood(
   foodId: FoodId,
@@ -204,6 +292,7 @@ function allowSpecificFood(preferences: Preferences, foodId: FoodId): void {
 }
 
 const NEGATIVE_MARKERS = [
+  ...REDUCTION_MARKERS,
   "一点也不想吃",
   "一点也不要",
   "完全不想吃",
@@ -369,12 +458,16 @@ function polarityMarkers(text: string): PolarityMarker[] {
   const candidates: PolarityMarker[] = [];
   for (const token of NEGATIVE_MARKERS) {
     for (const match of findAll(text, token)) {
-      candidates.push({ ...match, polarity: "exclude" });
+      candidates.push({
+        ...match,
+        polarity: "exclude",
+        reduction: REDUCTION_MARKERS.some((marker) => marker === token),
+      });
     }
   }
   for (const token of POSITIVE_MARKERS) {
     for (const match of findAll(text, token)) {
-      candidates.push({ ...match, polarity: "prefer" });
+      candidates.push({ ...match, polarity: "prefer", reduction: false });
     }
   }
 
@@ -393,7 +486,10 @@ function polarityMarkers(text: string): PolarityMarker[] {
   return selected;
 }
 
-function inferPolarity(match: TextMatch, markers: PolarityMarker[]): Polarity | undefined {
+function inferPolarityMarker(
+  match: TextMatch,
+  markers: PolarityMarker[],
+): PolarityMarker | undefined {
   const ranked = markers
     .map((marker) => {
       const distance =
@@ -410,7 +506,11 @@ function inferPolarity(match: TextMatch, markers: PolarityMarker[]): Polarity | 
         Number(b.before) - Number(a.before) ||
         b.marker.start - a.marker.start,
     );
-  return ranked[0]?.marker.polarity;
+  return ranked[0]?.marker;
+}
+
+function inferPolarity(match: TextMatch, markers: PolarityMarker[]): Polarity | undefined {
+  return inferPolarityMarker(match, markers)?.polarity;
 }
 
 function foodMatches(text: string): FoodMatch[] {
@@ -425,6 +525,19 @@ function foodMatches(text: string): FoodMatch[] {
   for (const definition of GROUP_DEFINITIONS) {
     for (const alias of definition.aliases) {
       for (const match of findAll(text, alias)) {
+        // “鱼” is not a standalone food reference inside these unsupported
+        // concrete terms. Treat the whole fragment as unrecognized instead of
+        // silently excluding every fish in the catalog.
+        if (
+          definition.group === "fish" &&
+          ["鱼香", "鱼油"].some((phrase) =>
+            findAll(text, phrase).some(
+              (range) => match.start >= range.start && match.end <= range.end,
+            ),
+          )
+        ) {
+          continue;
+        }
         candidates.push({
           ...match,
           group: definition.group,
@@ -455,7 +568,9 @@ function firstAliasMatch(text: string, aliases: readonly string[]): TextMatch | 
 
 function splitFragments(input: string): string[] {
   return input
-    .replace(/(?:但是|不过|可是|然而|而是|然后|另外|同时|并且|而且|但|改成|换成)/g, "；")
+    // “不过” is a conjunction, but in “不过敏” it is part of an explicit
+    // allergy correction and must stay attached to the allergen name.
+    .replace(/(?:但是|不过(?!敏)|可是|然而|而是|然后|另外|同时|并且|而且|但|改成|换成)/g, "；")
     .split(/[，,；;。！？!?\n]+/)
     .map((part) => part.trim())
     .filter(Boolean);
@@ -532,37 +647,39 @@ export function parsePreferences(
     const markers = polarityMarkers(fragment);
     let recognized = false;
     const allergenRanges: TextMatch[] = [];
+    const allergenMatches = ALLERGEN_DEFINITIONS.map((definition) =>
+      firstAliasMatch(fragment, definition.aliases),
+    ).filter((match): match is TextMatch => Boolean(match));
 
-    const removingAllergen = ALLERGY_REMOVAL_PATTERN.test(fragment);
-    if (ALLERGY_CLAIM_PATTERN.test(fragment) || removingAllergen) {
-      for (const definition of ALLERGEN_DEFINITIONS) {
-        const match = firstAliasMatch(fragment, definition.aliases);
-        if (!match) continue;
-        allergenRanges.push(match);
-        recognized = true;
-        recognizedInput = true;
-        const before = clonePreferences(preferences);
-        for (const allergen of definition.allergens) {
-          if (removingAllergen) {
-            preferences.allergens = removeValue(preferences.allergens, allergen);
-          } else {
-            pushUnique(preferences.allergens, allergen);
-          }
+    for (const definition of ALLERGEN_DEFINITIONS) {
+      const match = firstAliasMatch(fragment, definition.aliases);
+      if (!match) continue;
+      const allergenAction = inferAllergenAction(fragment, match, allergenMatches);
+      if (!allergenAction) continue;
+      allergenRanges.push(match);
+      recognized = true;
+      recognizedInput = true;
+      const before = clonePreferences(preferences);
+      for (const allergen of definition.allergens) {
+        if (allergenAction === "remove") {
+          preferences.allergens = removeValue(preferences.allergens, allergen);
+        } else {
+          pushUnique(preferences.allergens, allergen);
         }
-        if (!preferencesEqual(before, preferences)) {
-          for (const allergen of definition.allergens) {
-            addChange(
-              changes,
-              removingAllergen ? "remove_allergen" : "add_allergen",
-              allergen,
-            );
-          }
-          summaries.push(
-            removingAllergen
-              ? `已移除${definition.label}过敏原记录（其他不吃设置保留）`
-              : `将${definition.label}设为安全过敏原`,
+      }
+      if (!preferencesEqual(before, preferences)) {
+        for (const allergen of definition.allergens) {
+          addChange(
+            changes,
+            allergenAction === "remove" ? "remove_allergen" : "add_allergen",
+            allergen,
           );
         }
+        summaries.push(
+          allergenAction === "remove"
+            ? `已移除${definition.label}过敏原记录（其他不吃设置保留）`
+            : `已记录${definition.label}过敏原过滤限制`,
+        );
       }
     }
 
@@ -572,7 +689,9 @@ export function parsePreferences(
       // “取消牛奶过敏” would remove the allergen and immediately re-add an
       // ordinary 牛奶 exclusion because “过敏” is also a negative marker.
       if (allergenRanges.some((range) => overlaps(range, food))) continue;
-      const polarity = inferPolarity(food, markers);
+      const polarityMarker = inferPolarityMarker(food, markers);
+      const polarity = polarityMarker?.polarity;
+      const reductionRequested = Boolean(polarityMarker?.reduction);
       if (!polarity) continue;
       recognized = true;
       recognizedInput = true;
@@ -587,7 +706,11 @@ export function parsePreferences(
           );
           if (!preferencesEqual(beforeFoodChange, preferences)) {
             addChange(changes, "exclude_group", food.group);
-            summaries.push(`避开${food.label}`);
+            summaries.push(
+              reductionRequested
+                ? `暂不支持少量，已按不吃${food.label}处理`
+                : `避开${food.label}`,
+            );
           }
         } else {
           const allowedGroupFoodIds = groupFoodIds.filter(
@@ -615,12 +738,12 @@ export function parsePreferences(
             summaries.push(
               allowedGroupFoodIds.length === groupFoodIds.length
                 ? `${food.label}优先`
-                : `已更新${food.label}普通偏好（过敏原安全限制仍保留）`,
+                : `已更新${food.label}普通偏好（过敏原过滤限制仍保留）`,
             );
           }
           if (allowedGroupFoodIds.length < groupFoodIds.length) {
             warnings.push(
-              `${food.label}仍受过敏原安全限制；只有明确取消对应过敏记录才会解除。`,
+              `${food.label}仍受过敏原过滤限制；只有明确取消对应过敏记录才会解除。`,
             );
           }
         }
@@ -640,14 +763,18 @@ export function parsePreferences(
         pushUnique(preferences.excludedFoodIds, food.id);
         if (!preferencesEqual(beforeFoodChange, preferences)) {
           addChange(changes, "exclude_food", food.id);
-          summaries.push(`避开${food.label}`);
+          summaries.push(
+            reductionRequested
+              ? `暂不支持少量，已按不放${food.label}处理`
+              : `避开${food.label}`,
+          );
         }
       } else {
         const blockedAllergens = blockedAllergensForFood(food.id, preferences);
         if (blockedAllergens.length > 0) {
           const correctionLabel = ALLERGEN_CORRECTION_LABELS[blockedAllergens[0]];
           warnings.push(
-            `${food.label}仍受过敏原安全限制；如资料已确认有误，请明确输入“取消${correctionLabel}过敏”。`,
+            `${food.label}仍受过敏原过滤限制；如资料已确认有误，请明确输入“取消${correctionLabel}过敏”。`,
           );
           continue;
         }
@@ -665,7 +792,9 @@ export function parsePreferences(
 
     const whey = firstAliasMatch(fragment, ["乳清蛋白粉", "蛋白粉", "乳清"]);
     if (whey) {
-      const polarity = inferPolarity(whey, markers);
+      const polarityMarker = inferPolarityMarker(whey, markers);
+      const polarity = polarityMarker?.polarity;
+      const reductionRequested = Boolean(polarityMarker?.reduction);
       if (polarity) {
         recognized = true;
         recognizedInput = true;
@@ -689,14 +818,16 @@ export function parsePreferences(
             blockedAllergensForFood("whey_protein", preferences).length > 0;
           summaries.push(
             nextAvoidWhey
-              ? "不使用蛋白粉"
+              ? reductionRequested
+                ? "暂不支持少量，已按不使用蛋白粉处理"
+                : "不使用蛋白粉"
               : blockedByAllergen
-                ? "已取消蛋白粉普通排除（过敏原安全限制仍保留）"
+                ? "已取消蛋白粉普通排除（过敏原过滤限制仍保留）"
                 : "允许蛋白粉",
           );
           if (blockedByAllergen) {
             warnings.push(
-              "蛋白粉仍受牛奶过敏原安全限制；只有明确输入“取消牛奶过敏”才会解除。",
+              "蛋白粉仍受牛奶过敏原过滤限制；只有明确输入“取消牛奶过敏”才会解除。",
             );
           }
         }
@@ -706,9 +837,13 @@ export function parsePreferences(
     for (const method of METHOD_DEFINITIONS) {
       const match = firstAliasMatch(fragment, method.aliases);
       if (!match) continue;
+      const polarity = inferPolarity(match, markers);
+      // Merely mentioning an appliance or method (for example “空气炸锅坏了”)
+      // is not a request to prefer it.
+      if (!polarity) continue;
       recognized = true;
       recognizedInput = true;
-      if (inferPolarity(match, markers) === "exclude") {
+      if (polarity === "exclude") {
         warnings.push(`暂不能记录“排除${method.label}”，请改为说明想优先的做法。`);
       } else if (!preferences.preferredCookingMethods.includes(method.value)) {
         pushUnique(preferences.preferredCookingMethods, method.value);
@@ -735,7 +870,12 @@ export function parsePreferences(
     for (const flavor of FLAVOR_DEFINITIONS) {
       const match = firstAliasMatch(fragment, flavor.aliases);
       if (!match || (flavor.value === "light" && dinnerLight)) continue;
-      const polarity = inferPolarity(match, markers);
+      const polarityMarker = inferPolarityMarker(match, markers);
+      const polarity = polarityMarker?.polarity;
+      const reductionRequested = Boolean(polarityMarker?.reduction);
+      // A bare flavor mention can be descriptive rather than a preference.
+      // Require an explicit positive or negative marker before changing state.
+      if (!polarity) continue;
       // “番茄”既是实际食材，也是菜谱口味标签。否定实际食材时，
       // excludedFoodIds 是硬约束，不能再把同一词降级成“暂不支持的口味排除”。
       if (
@@ -750,7 +890,24 @@ export function parsePreferences(
       recognized = true;
       recognizedInput = true;
       if (polarity === "exclude") {
-        warnings.push(`暂不能记录“排除${flavor.label}”，请改为说明想要的口味。`);
+        const wasPreferred = preferences.preferredFlavors.includes(flavor.value);
+        if (wasPreferred) {
+          preferences.preferredFlavors = removeValue(
+            preferences.preferredFlavors,
+            flavor.value,
+          );
+          addChange(changes, "remove_flavor", flavor.value);
+          summaries.push(`已取消${flavor.label}优先`);
+        }
+        warnings.push(
+          reductionRequested
+            ? wasPreferred
+              ? `当前离线版仍不能保存具体${flavor.label}用量；取消已有优先不等同于严格少放。`
+              : `已识别为减少${flavor.label}，但当前离线版不能保存具体用量；本次没有新增偏好。`
+            : wasPreferred
+              ? `当前离线版仍不能保存严格排除${flavor.label}的约束；本次只取消了已有优先。`
+              : `已识别为不想要${flavor.label}，但当前离线版不能保存严格排除约束；本次没有修改设置。`,
+        );
       } else if (!preferences.preferredFlavors.includes(flavor.value)) {
         pushUnique(preferences.preferredFlavors, flavor.value);
         addChange(changes, "prefer_flavor", flavor.value);
@@ -774,7 +931,7 @@ export function parsePreferences(
   if (changed) {
     reply = `好的，已按离线规则调整：${uniqueSummaries.join("；")}。`;
     if (reset && preferences.allergens.length > 0) {
-      reply += "为保证安全，过敏原资料没有随偏好一起清除。";
+      reply += "过敏原过滤记录没有随普通偏好一起清除。";
     }
   } else if (warnings.length > 0) {
     reply = [...new Set(warnings)].join(" ");

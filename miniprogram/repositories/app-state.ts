@@ -206,6 +206,7 @@ export function isAppState(value: unknown): value is AppState {
     isPreferences(value.preferences) &&
     (value.currentPlan === null || isDailyPlan(value.currentPlan)) &&
     Array.isArray(value.history) &&
+    value.history.length <= MAX_LOCAL_HISTORY &&
     value.history.every(isDailyPlan) &&
     Number.isInteger(value.generationCounter) &&
     (value.generationCounter as number) >= 0 &&
@@ -217,6 +218,16 @@ export function isAppState(value: unknown): value is AppState {
   if (!structurallyValid) return false;
 
   const currentPlan = value.currentPlan as DailyPlan | null;
+  const history = value.history as DailyPlan[];
+  const historyPlanIds = new Set(history.map((plan) => plan.id));
+  if (currentPlan && !historyPlanIds.has(currentPlan.id)) return false;
+  if (
+    Object.keys(value.checkedFoodIdsByPlanId as Record<string, string[]>).some(
+      (planId) => !historyPlanIds.has(planId)
+    )
+  ) {
+    return false;
+  }
   if (
     currentPlan &&
     !validatePlanAgainstPreferences(
@@ -253,21 +264,31 @@ export function migrateAppState(
   const profileConflict = Boolean(
     currentPlan && !profilesMatchSnapshot(profiles, currentPlan.profilesSnapshot)
   );
+  let history = Array.isArray(value.history)
+    ? value.history.filter(isDailyPlan).slice(0, MAX_LOCAL_HISTORY)
+    : [];
+  if (currentPlan && !history.some((plan) => plan.id === currentPlan.id)) {
+    history = [currentPlan, ...history].slice(0, MAX_LOCAL_HISTORY);
+  }
+  const retainedPlanIds = new Set(history.map((plan) => plan.id));
+  const checkedFoodIdsByPlanId = isCheckedMap(value.checkedFoodIdsByPlanId)
+    ? Object.fromEntries(
+        Object.entries(value.checkedFoodIdsByPlanId).filter(([planId]) =>
+          retainedPlanIds.has(planId)
+        )
+      )
+    : {};
   const candidate: AppState = {
     profiles,
     preferences,
     currentPlan,
-    history: Array.isArray(value.history)
-      ? value.history.filter(isDailyPlan).slice(0, MAX_LOCAL_HISTORY)
-      : [],
+    history,
     generationCounter:
       Number.isInteger(value.generationCounter) &&
       (value.generationCounter as number) >= 0
         ? (value.generationCounter as number)
         : 0,
-    checkedFoodIdsByPlanId: isCheckedMap(value.checkedFoodIdsByPlanId)
-      ? value.checkedFoodIdsByPlanId
-      : {},
+    checkedFoodIdsByPlanId,
     planNeedsRefresh: preferencesConflict || profileConflict,
     planRefreshReason: preferencesConflict
       ? "preferences_changed"

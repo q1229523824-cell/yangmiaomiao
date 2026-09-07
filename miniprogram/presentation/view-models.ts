@@ -123,7 +123,13 @@ function weightStateLabel(weightState: string): string {
   return "生重";
 }
 
-export function toMealViewModels(plan: DailyPlan): MealViewModel[] {
+const HIDDEN_SAUCE_MESSAGE =
+  "已按过敏原过滤记录隐藏调味建议，请自行核对配料表和交叉污染";
+
+export function toMealViewModels(
+  plan: DailyPlan,
+  activeAllergens: readonly Allergen[] = plan.preferencesSnapshot.allergens,
+): MealViewModel[] {
   const profileById = Object.fromEntries(
     plan.profilesSnapshot.map((profile) => [profile.id, profile])
   ) as Record<string, Profile>;
@@ -136,7 +142,11 @@ export function toMealViewModels(plan: DailyPlan): MealViewModel[] {
       name: meal.name,
       method: meal.cookingMethods.map((method) => METHOD_LABELS[method] ?? method).join(" / "),
       tip: meal.tip,
-      sauce: meal.sauce ? `调味建议：${meal.sauce}` : "",
+      sauce: meal.sauce
+        ? activeAllergens.length > 0
+          ? HIDDEN_SAUCE_MESSAGE
+          : `调味建议：${meal.sauce}`
+        : "",
       rows: meal.items
         .filter((item) =>
           plan.memberIds.some((memberId) => (item.portionsByMemberId[memberId] ?? 0) > 0)

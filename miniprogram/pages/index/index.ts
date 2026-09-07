@@ -113,7 +113,9 @@ Page({
       loading: false,
       dateText: dateLabel(state.currentPlan.date),
       profiles: toTodayProfileViewModels(state.currentPlan),
-      meals: planBlockedByPreferences ? [] : toMealViewModels(state.currentPlan),
+      meals: planBlockedByPreferences
+        ? []
+        : toMealViewModels(state.currentPlan, state.preferences.allergens),
       preferenceTags,
       hasRemovablePreferences: preferenceTags.some((tag) => tag.removable),
       hasAllergens: state.preferences.allergens.length > 0,
@@ -163,7 +165,7 @@ Page({
     try {
       const result = await wx.showModal({
         title: "清空饮食偏好？",
-        content: "不吃、优先、口味和做法会清空；过敏原安全资料会保留。",
+        content: "不吃、优先、口味和做法会清空；过敏原过滤记录会保留。",
         confirmText: "清空"
       });
       if (!result.confirm || !state) return;

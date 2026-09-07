@@ -53,6 +53,20 @@
   line-height: 72rpx;
 }
 
+.recovery-note {
+  display: block;
+  margin-top: 20rpx;
+  color: #ffc7c7;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
+.recovery-clear-button {
+  color: #ffe4e4;
+  border-color: rgba(255, 180, 180, 0.32);
+  background: rgba(128, 24, 24, 0.35);
+}
+
 .loading-card {
   color: #cfced8;
   text-align: center;

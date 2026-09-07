@@ -56,7 +56,7 @@
         <text wx:else class="preference-tag preference-tag--{{item.tone}}">{{item.label}}</text>
       </block>
     </view>
-    <view class="safety-note" wx:if="{{hasAllergens}}">🛡 这是两人共同菜单的过敏原保护。普通偏好清空不会解除；资料有误时请明确输入“取消牛奶过敏”这类指令。当前只检查列出的主食材，调味品配料和交叉污染仍需自行核对。</view>
+    <view class="safety-note" wx:if="{{hasAllergens}}">🛡 这是两人共同菜单的过敏原过滤记录。普通偏好清空不会解除；资料有误时请明确输入“取消牛奶过敏”这类指令。当前只检查列出的主食材，并会隐藏调味建议；包装配料和交叉污染仍需自行核对，不代表医学意义上的过敏安全。</view>
     <button wx:if="{{hasRemovablePreferences}}" class="clear-preferences" size="mini" bindtap="onClearPreferences" disabled="{{busy}}">清空普通偏好（保留过敏原）</button>
   </view>
 

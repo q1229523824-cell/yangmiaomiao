@@ -137,8 +137,9 @@ describe("generateDailyPlan", () => {
     );
   });
 
-  it("accepts body-profile boundary values and still returns valid finite portions", () => {
-    const profiles: Profile[] = [
+  it.each([
+    [
+      "过低且无法由日常模板接近的热量目标",
       {
         ...cloneProfile(DEFAULT_PROFILES[0]),
         id: "minimum-profile",
@@ -146,7 +147,10 @@ describe("generateDailyPlan", () => {
         heightCm: 100,
         weightKg: 30,
         ageYears: 100
-      },
+      }
+    ],
+    [
+      "会产生极端单份食材的目标",
       {
         ...cloneProfile(DEFAULT_PROFILES[1]),
         id: "maximum-profile",
@@ -155,14 +159,97 @@ describe("generateDailyPlan", () => {
         weightKg: 300,
         ageYears: 16
       }
-    ];
-    const plan = generate({ profiles });
+    ]
+  ] satisfies ReadonlyArray<readonly [string, Profile]>) (
+    "拒绝%s，而不是显示看似精确但不可用的份量",
+    (_label, profile) => {
+      const unexpectedlyAccepted: Array<{ seed: number; caloriesKcal: number }> = [];
+      for (let seed = 0; seed < 128; seed += 1) {
+        try {
+          const plan = generate({ profiles: [profile], seed });
+          unexpectedlyAccepted.push({
+            seed,
+            caloriesKcal: plan.nutritionByMemberId[profile.id].caloriesKcal
+          });
+        } catch (error) {
+          expect(error).toBeInstanceOf(MenuGenerationError);
+          expect(error).toMatchObject({ code: "UNSUPPORTED_GOAL" });
+          expect((error as Error).message).toContain("请核对档案和目标设置");
+        }
+      }
+      expect(unexpectedlyAccepted).toEqual([]);
+    }
+  );
 
-    expect(validateDailyPlan(plan)).toEqual({ valid: true, errors: [] });
-    for (const profile of profiles) {
-      expect(Object.values(plan.goalsByMemberId[profile.id]).every(Number.isFinite)).toBe(true);
-      expect(portionsFor(plan, profile.id).every((grams) => Number.isFinite(grams) && grams >= 0))
-        .toBe(true);
+  it("keeps varied ordinary adult profiles within practical single-item portions", () => {
+    const profiles: Profile[] = [
+      {
+        ...cloneProfile(DEFAULT_PROFILES[0]),
+        id: "smaller-adult",
+        name: "小体型成人",
+        heightCm: 145,
+        weightKg: 42,
+        ageYears: 70
+      },
+      {
+        ...cloneProfile(DEFAULT_PROFILES[1]),
+        id: "larger-adult",
+        name: "大体型成人",
+        heightCm: 195,
+        weightKg: 120,
+        ageYears: 30
+      }
+    ];
+
+    for (let seed = 0; seed < 64; seed += 1) {
+      const plan = generate({ profiles, seed });
+      expect(validateDailyPlan(plan)).toEqual({ valid: true, errors: [] });
+      for (const profile of profiles) {
+        expect(
+          portionsFor(plan, profile.id).every((grams) =>
+            Number.isFinite(grams) && grams >= 0 && grams <= 700
+          )
+        ).toBe(true);
+        for (const meal of plan.meals) {
+          for (const item of meal.items) {
+            if (item.role === "protein") {
+              expect(item.portionsByMemberId[profile.id]).toBeLessThanOrEqual(500);
+            }
+            if (
+              item.role === "carbohydrate" &&
+              FOOD_BY_ID[item.foodId].weightState === "dry"
+            ) {
+              expect(item.portionsByMemberId[profile.id]).toBeLessThanOrEqual(300);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it("rejects an in-scale target when meeting it would still require an oversized protein serving", () => {
+    const profile: Profile = {
+      ...cloneProfile(DEFAULT_PROFILES[0]),
+      id: "oversized-protein",
+      name: "高蛋白边界",
+      heightCm: 160,
+      weightKg: 180,
+      ageYears: 60,
+      goalSettings: {
+        ...DEFAULT_PROFILES[0].goalSettings,
+        activityFactor: 1.2,
+        calorieTargetRatio: 0.75
+      }
+    };
+
+    expect(() => generate({ profiles: [profile] })).toThrowError(
+      /蛋白|鸡|猪|牛|鱼|虾|达到/
+    );
+    try {
+      generate({ profiles: [profile] });
+    } catch (error) {
+      expect(error).toMatchObject({ code: "UNSUPPORTED_GOAL" });
+      expect((error as Error).message).toContain("达到");
     }
   });
 

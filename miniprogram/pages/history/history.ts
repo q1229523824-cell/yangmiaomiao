@@ -82,7 +82,7 @@ Page({
     try {
       const result = await wx.showModal({
         title: "恢复这份菜单？",
-        content: `将使用 ${item.dateLabel} 的菜单并恢复当时的普通偏好；当前过敏原保护会保留。`,
+        content: `将使用 ${item.dateLabel} 的菜单并恢复当时的普通偏好；当前过敏原过滤记录会保留。`,
         confirmText: "确认恢复",
         confirmColor: "#d49f00",
       });

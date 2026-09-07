@@ -199,6 +199,7 @@ export const CARBOHYDRATE_FOODS: ReadonlyArray<Food> = [
     nutritionPer100g: { caloriesKcal: 337, proteinG: 12, carbsG: 70, fatG: 2.5 },
     weightState: "dry",
     groups: ["grain"],
+    allergens: ["gluten"],
   },
   {
     id: "oats_dry",
@@ -207,6 +208,7 @@ export const CARBOHYDRATE_FOODS: ReadonlyArray<Food> = [
     nutritionPer100g: { caloriesKcal: 379, proteinG: 13.2, carbsG: 67.7, fatG: 6.5 },
     weightState: "dry",
     groups: ["grain"],
+    allergens: ["gluten"],
   },
 ];
 
@@ -434,7 +436,7 @@ export const RECIPES: ReadonlyArray<Recipe> = [
     vegetableFoodIds: ["broccoli", "carrot"],
     flavors: ["garlic", "black_pepper"],
     sauce: "蒜末 + 生抽 + 黑胡椒 + 少量蜂蜜可选",
-    tip: "猪里脊切厚片腌制后空气炸；西兰花和胡萝卜可一起蒸，出锅拌一点生抽和蒜蓉。",
+    tip: "猪里脊切厚片腌制后空气炸；西兰花和胡萝卜可一起蒸，出锅后按个人情况简单调味。",
   },
   {
     id: "steamed_sea_bass_with_garlic",
@@ -541,6 +543,26 @@ export const BREAKFAST_TEMPLATES: ReadonlyArray<BreakfastTemplate> = [
     ],
     cookingMethods: ["steam", "ready_to_eat"],
     tip: "玉米和鸡蛋都能蒸箱一起做，几乎不用看火。",
+  },
+  {
+    id: "sweet_potato_chicken_breakfast",
+    name: "红薯鸡胸早餐",
+    ingredients: [
+      { foodId: "sweet_potato_raw", role: "carbohydrate", basePortionG: 220 },
+      { foodId: "chicken_breast", role: "protein", basePortionG: 120 },
+    ],
+    cookingMethods: ["steam", "air_fryer"],
+    tip: "红薯可以提前蒸好，鸡胸切片后蒸熟或空气炸熟，早上直接加热更省时间。",
+  },
+  {
+    id: "corn_pork_breakfast",
+    name: "玉米里脊早餐",
+    ingredients: [
+      { foodId: "corn_edible_raw", role: "carbohydrate", basePortionG: 200 },
+      { foodId: "pork_tenderloin", role: "protein", basePortionG: 100 },
+    ],
+    cookingMethods: ["steam", "air_fryer"],
+    tip: "玉米和里脊可以提前分装，里脊切片后蒸熟或空气炸熟，食用前充分加热。",
   },
 ];
 

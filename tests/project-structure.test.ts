@@ -48,13 +48,22 @@ describe("微信小程序项目结构", () => {
   });
 
   it("keeps the offline runtime free of browser DOM and network APIs", () => {
-    const combined = sourceFilesUnder(miniprogramRoot)
+    const sourceFiles = sourceFilesUnder(miniprogramRoot);
+    const typescript = sourceFiles
       .filter((path) => path.endsWith(".ts"))
       .map((path) => readFileSync(path, "utf8"))
       .join("\n");
-    expect(combined).not.toMatch(/\b(?:document|window)\s*\./);
-    expect(combined).not.toMatch(/\b(?:innerHTML|XMLHttpRequest|WebSocket|fetch)\b/);
-    expect(combined).not.toMatch(/\bwx\.(?:request|uploadFile|downloadFile)\b/);
+    const allRuntimeSource = sourceFiles
+      .map((path) => readFileSync(path, "utf8"))
+      .join("\n");
+
+    expect(typescript).not.toMatch(/\b(?:document|window)\s*\./);
+    expect(typescript).not.toMatch(/\b(?:innerHTML|XMLHttpRequest|WebSocket|fetch)\b/);
+    expect(typescript).not.toMatch(
+      /\bwx\.(?:request|uploadFile|downloadFile|connectSocket|sendSocketMessage|closeSocket|onSocketOpen|onSocketMessage|onSocketError|onSocketClose)\b/
+    );
+    expect(typescript).not.toMatch(/\bwx\.cloud\b/);
+    expect(allRuntimeSource).not.toMatch(/(?:https?|wss?):\/\//i);
   });
 
   it("does not contain common secret-bearing files or literal secrets", () => {

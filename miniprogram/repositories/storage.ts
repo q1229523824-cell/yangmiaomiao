@@ -14,6 +14,41 @@ export interface StoredEnvelope<T> {
   data: T;
 }
 
+export type StorageDataErrorCode =
+  | "INVALID_ENVELOPE"
+  | "INVALID_CURRENT_DATA"
+  | "UNSUPPORTED_FUTURE_SCHEMA"
+  | "MIGRATION_FAILED";
+
+/**
+ * Existing local data must never be mistaken for a fresh installation.
+ * Pages surface this Chinese message and, most importantly, do not save a
+ * generated fallback over the only copy of the user's data.
+ */
+export class StorageDataError extends Error {
+  constructor(
+    public readonly code: StorageDataErrorCode,
+    message: string
+  ) {
+    super(message);
+    this.name = "StorageDataError";
+  }
+}
+
+function isStoredEnvelope(value: unknown): value is StoredEnvelope<unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const envelope = value as Partial<StoredEnvelope<unknown>>;
+  return (
+    Number.isInteger(envelope.schemaVersion) &&
+    (envelope.schemaVersion as number) >= 1 &&
+    typeof envelope.savedAt === "string" &&
+    !Number.isNaN(Date.parse(envelope.savedAt)) &&
+    Object.prototype.hasOwnProperty.call(envelope, "data")
+  );
+}
+
 export function namespacedKey(key: string): string {
   return `${STORAGE_NAMESPACE}:${key}`;
 }
@@ -70,27 +105,58 @@ export class VersionedRepository<T> {
   ) {}
 
   async load(): Promise<T> {
-    const stored = await this.adapter.get<StoredEnvelope<T>>(
+    const stored = await this.adapter.get<unknown>(
       namespacedKey(this.logicalKey)
     );
 
-    if (!stored || typeof stored.schemaVersion !== "number") {
+    // Storage adapters return undefined only for a genuinely absent key.
+    // Every present-but-unreadable value is an integrity error, not a fresh
+    // installation, so callers cannot overwrite it with generated defaults.
+    if (stored === undefined) {
       return this.fallback();
+    }
+    if (!isStoredEnvelope(stored)) {
+      throw new StorageDataError(
+        "INVALID_ENVELOPE",
+        "本地数据格式已损坏，已停止加载以避免覆盖原数据。"
+      );
     }
 
     if (stored.schemaVersion === this.schemaVersion) {
-      return this.validate(stored.data) ? stored.data : this.fallback();
+      if (this.validate(stored.data)) return stored.data;
+      throw new StorageDataError(
+        "INVALID_CURRENT_DATA",
+        "本地数据校验失败，已停止加载以避免覆盖原数据。"
+      );
     }
 
-    if (stored.schemaVersion < this.schemaVersion && this.migrate) {
-      const migrated = this.migrate(stored.data, stored.schemaVersion);
+    if (stored.schemaVersion > this.schemaVersion) {
+      throw new StorageDataError(
+        "UNSUPPORTED_FUTURE_SCHEMA",
+        `本地数据来自更高版本（${stored.schemaVersion}），当前版本无法安全读取，已停止加载以避免覆盖原数据。`
+      );
+    }
+
+    if (this.migrate) {
+      let migrated: T | undefined;
+      try {
+        migrated = this.migrate(stored.data, stored.schemaVersion);
+      } catch {
+        throw new StorageDataError(
+          "MIGRATION_FAILED",
+          "本地旧版本数据迁移失败，已停止加载以避免覆盖原数据。"
+        );
+      }
       if (migrated !== undefined && this.validate(migrated)) {
         await this.save(migrated);
         return migrated;
       }
     }
 
-    return this.fallback();
+    throw new StorageDataError(
+      "MIGRATION_FAILED",
+      "本地旧版本数据无法安全迁移，已停止加载以避免覆盖原数据。"
+    );
   }
 
   async save(data: T): Promise<void> {

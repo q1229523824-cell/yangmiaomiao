@@ -7,6 +7,10 @@
   <view class="status-card status-card--error" wx:if="{{pageError}}">
     <text>⚠️ {{pageError}}</text>
     <button wx:if="{{loadFailed}}" class="retry-button" bindtap="onRetryLoad" disabled="{{busy}}">重新读取</button>
+    <block wx:if="{{loadFailed}}">
+      <text class="recovery-note">如果反复读取失败，可以清除这台设备上的档案、偏好、菜单历史和购物勾选后重新开始。</text>
+      <button class="retry-button recovery-clear-button" bindtap="onClearData" disabled="{{busy}}">清除本地数据并重新开始</button>
+    </block>
   </view>
   <view class="card loading-card" wx:if="{{loading}}">正在读取本地档案…</view>
 
@@ -152,7 +156,7 @@
     </view>
 
     <view class="card notice">
-      活动量用于估算每天消耗，目标强度用于设置热量范围。结果仅供日常健身饮食参考，不替代医生或注册营养师建议。修改档案后，已有菜单不会被自动替换。
+      活动量用于估算每天消耗，目标强度用于设置热量范围。结果仅供日常健身饮食参考，不替代医生或注册营养师建议。若当前目标无法用本地模板组合成日常份量，小程序会停止生成并提示核对；修改档案后，已有菜单不会被自动替换。
     </view>
     <button class="clear-button {{busy ? 'clear-button--disabled' : ''}}" bindtap="onClearData" disabled="{{busy}}">清除这台设备上的全部数据</button>
   </block>

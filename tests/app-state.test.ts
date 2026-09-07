@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PREFERENCES, DEFAULT_PROFILES } from "../miniprogram/data/catalog";
+import {
+  DEFAULT_PREFERENCES,
+  DEFAULT_PROFILES,
+  FOOD_BY_ID
+} from "../miniprogram/data/catalog";
 import { generateDailyPlan } from "../miniprogram/domain/menu-generator";
+import type { Preferences } from "../miniprogram/domain/models";
 import {
   MAX_LOCAL_HISTORY,
   appendPlanToHistory,
@@ -9,6 +14,7 @@ import {
   migrateAppState,
   refreshFlagsAfterProfileSave
 } from "../miniprogram/repositories/app-state";
+import { CURRENT_SCHEMA_VERSION } from "../miniprogram/repositories/storage";
 
 describe("app state", () => {
   it("creates independent default state values", () => {
@@ -39,6 +45,79 @@ describe("app state", () => {
     expect(state.currentPlan?.id).toBe(state.history[0].id);
   });
 
+  it("keeps a fully checked 60-plan envelope below the storage regression budget", () => {
+    const profiles = DEFAULT_PROFILES.map((profile, index) => ({
+      ...profile,
+      name: index === 0 ? "成员称呼测试上限甲乙丙丁" : "成员称呼测试上限戊己庚辛",
+      goalSettings: { ...profile.goalSettings }
+    }));
+    const broadPreferences: Preferences = {
+      ...DEFAULT_PREFERENCES,
+      preferredFoodIds: Object.keys(FOOD_BY_ID),
+      preferredCookingMethods: [
+        "air_fryer",
+        "steam",
+        "braise",
+        "microwave",
+        "boil",
+        "ready_to_eat"
+      ],
+      preferredFlavors: [
+        "spicy",
+        "garlic",
+        "black_pepper",
+        "cumin",
+        "tomato",
+        "lemon",
+        "light"
+      ],
+      lightDinner: true
+    };
+    let state = {
+      ...createDefaultAppState(),
+      profiles,
+      preferences: broadPreferences
+    };
+    for (let seed = 0; seed < MAX_LOCAL_HISTORY; seed += 1) {
+      const plan = generateDailyPlan({
+        date: `2026-${String(Math.floor(seed / 28) + 1).padStart(2, "0")}-${String((seed % 28) + 1).padStart(2, "0")}`,
+        profiles,
+        preferences: broadPreferences,
+        seed,
+        createdAt: `2026-09-07T00:00:${String(seed).padStart(2, "0")}.000Z`
+      });
+      state = appendPlanToHistory(state, plan);
+    }
+
+    const fullyCheckedState = {
+      ...state,
+      checkedFoodIdsByPlanId: Object.fromEntries(
+        state.history.map((plan) => [
+          plan.id,
+          [
+            ...new Set(
+              plan.meals.flatMap((meal) =>
+                meal.items.map((item) => item.foodId)
+              )
+            )
+          ]
+        ])
+      )
+    };
+    expect(isAppState(fullyCheckedState)).toBe(true);
+    const serializedBytes = Buffer.byteLength(
+      JSON.stringify({
+        schemaVersion: CURRENT_SCHEMA_VERSION,
+        savedAt: "2026-09-07T00:00:00.000Z",
+        data: fullyCheckedState
+      }),
+      "utf8"
+    );
+
+    // WeChat allows 1 MB per key; this tighter guard reserves roughly half for growth.
+    expect(serializedBytes).toBeLessThan(512 * 1024);
+  });
+
   it("rejects malformed nested cache values instead of loading them", () => {
     expect(
       isAppState({
@@ -50,6 +129,65 @@ describe("app state", () => {
         checkedFoodIdsByPlanId: "broken",
         planNeedsRefresh: false,
         planRefreshReason: null
+      })
+    ).toBe(false);
+  });
+
+  it("rejects current-schema history beyond the local retention limit", () => {
+    const plan = generateDailyPlan({
+      date: "2026-09-07",
+      profiles: DEFAULT_PROFILES,
+      preferences: DEFAULT_PREFERENCES,
+      seed: 71,
+      createdAt: "2026-09-07T00:00:00.000Z"
+    });
+    const history = Array.from(
+      { length: MAX_LOCAL_HISTORY + 1 },
+      (_, index) => (index === 0 ? plan : { ...plan, id: `${plan.id}-${index}` })
+    );
+
+    expect(
+      isAppState({
+        ...createDefaultAppState(),
+        currentPlan: plan,
+        history
+      })
+    ).toBe(false);
+  });
+
+  it("rejects shopping check state for a plan no longer retained in history", () => {
+    const plan = generateDailyPlan({
+      date: "2026-09-07",
+      profiles: DEFAULT_PROFILES,
+      preferences: DEFAULT_PREFERENCES,
+      seed: 72,
+      createdAt: "2026-09-07T00:00:00.000Z"
+    });
+
+    expect(
+      isAppState({
+        ...createDefaultAppState(),
+        currentPlan: plan,
+        history: [plan],
+        checkedFoodIdsByPlanId: { "removed-plan": ["tomato"] }
+      })
+    ).toBe(false);
+  });
+
+  it("rejects a current plan that is missing from retained history", () => {
+    const plan = generateDailyPlan({
+      date: "2026-09-07",
+      profiles: DEFAULT_PROFILES,
+      preferences: DEFAULT_PREFERENCES,
+      seed: 73,
+      createdAt: "2026-09-07T00:00:00.000Z"
+    });
+
+    expect(
+      isAppState({
+        ...createDefaultAppState(),
+        currentPlan: plan,
+        history: []
       })
     ).toBe(false);
   });
@@ -141,6 +279,44 @@ describe("app state", () => {
     expect(migrated?.currentPlan?.id).toBe(currentPlan.id);
     expect(migrated?.profiles).toHaveLength(2);
     expect(migrated?.planNeedsRefresh).toBe(false);
+    expect(isAppState(migrated)).toBe(true);
+  });
+
+  it("normalizes legacy history references without discarding its current plan", () => {
+    const currentPlan = generateDailyPlan({
+      date: "2026-09-07",
+      profiles: DEFAULT_PROFILES,
+      preferences: DEFAULT_PREFERENCES,
+      seed: 74,
+      createdAt: "2026-09-07T00:00:00.000Z"
+    });
+    const olderPlan = generateDailyPlan({
+      date: "2026-09-06",
+      profiles: DEFAULT_PROFILES,
+      preferences: DEFAULT_PREFERENCES,
+      seed: 75,
+      createdAt: "2026-09-06T00:00:00.000Z"
+    });
+    const base = createDefaultAppState();
+    const { planNeedsRefresh: _needsRefresh, planRefreshReason: _reason, ...v1 } = {
+      ...base,
+      currentPlan,
+      history: [olderPlan],
+      checkedFoodIdsByPlanId: {
+        [olderPlan.id]: [olderPlan.meals[0].items[0].foodId],
+        "removed-plan": ["tomato"]
+      }
+    };
+
+    const migrated = migrateAppState(v1, 1);
+
+    expect(migrated?.history.map((plan) => plan.id)).toEqual([
+      currentPlan.id,
+      olderPlan.id
+    ]);
+    expect(migrated?.checkedFoodIdsByPlanId).toEqual({
+      [olderPlan.id]: [olderPlan.meals[0].items[0].foodId]
+    });
     expect(isAppState(migrated)).toBe(true);
   });
 

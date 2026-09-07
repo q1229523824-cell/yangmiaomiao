@@ -50,6 +50,25 @@ describe("profile form", () => {
     expect(result.draft.errors.ageYears).toContain("16–100");
   });
 
+  it("keeps the documented input boundaries editable and leaves recipe capability checks to generation", () => {
+    const source = DEFAULT_PROFILES[0];
+    const result = validateProfileDraft(
+      {
+        ...profileToDraft(source),
+        heightCm: "100",
+        weightKg: "30",
+        ageYears: "100"
+      },
+      source
+    );
+
+    expect(result.profile).toMatchObject({
+      heightCm: 100,
+      weightKg: 30,
+      ageYears: 100
+    });
+  });
+
   it("converts valid drafts and selected activity/target options into a profile", () => {
     const source = DEFAULT_PROFILES[0];
     let draft = profileToDraft(source);

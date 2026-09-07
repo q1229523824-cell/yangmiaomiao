@@ -245,16 +245,20 @@ Page({
 
   async onClearData() {
     if (operationBusy) return;
+    const previousPageError = this.data.pageError;
     operationBusy = true;
     this.setData({ busy: true, saveDisabled: true, pageError: "" });
     try {
       const result = await wx.showModal({
         title: "清除本地数据？",
-        content: "档案、普通偏好、过敏原安全设置、菜单历史和购物勾选都会从这台设备删除。",
+        content: "档案、普通偏好、过敏原过滤记录、菜单历史和购物勾选都会从这台设备删除。",
         confirmText: "清除",
         confirmColor: "#d64545"
       });
-      if (!result.confirm) return;
+      if (!result.confirm) {
+        this.setData({ pageError: previousPageError });
+        return;
+      }
 
       await clearAllOwnedData(createWxStorageAdapter());
       const reset = createDefaultAppState();
@@ -265,6 +269,7 @@ Page({
         drafts,
         hasUnsavedChanges: false,
         loadFailed: false,
+        pageError: "",
         savedMessage: "本地数据已清除，档案已恢复为默认值。"
       });
     } catch (error) {

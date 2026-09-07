@@ -28,11 +28,12 @@ import {
 } from "./nutrition";
 import { validateDailyPlan } from "./plan-validator";
 
-export const CATALOG_VERSION = 1;
+export const CATALOG_VERSION = 2;
 
 export type MenuGenerationErrorCode =
   | "NO_MEMBERS"
   | "INVALID_PROFILE"
+  | "UNSUPPORTED_GOAL"
   | "NO_BREAKFAST_MATCH"
   | "NO_RECIPE_MATCH"
   | "NO_CARBOHYDRATE_MATCH"
@@ -59,6 +60,22 @@ export interface GenerateDailyPlanInput {
 const REFERENCE_DAILY_CALORIES_KCAL = 1800;
 const MIN_SERVING_SCALE = 0.55;
 const MAX_SERVING_SCALE = 2.5;
+const MIN_SUPPORTED_TARGET_CALORIES_KCAL =
+  REFERENCE_DAILY_CALORIES_KCAL * MIN_SERVING_SCALE;
+const MAX_SUPPORTED_TARGET_CALORIES_KCAL =
+  REFERENCE_DAILY_CALORIES_KCAL * MAX_SERVING_SCALE;
+/**
+ * This is a product capability limit, not a dietary recommendation. The
+ * bundled recipes are designed for ordinary household servings. Protein and
+ * dry staples use tighter limits than high-water foods; silently returning a
+ * larger serving would make the UI look precise while the result is not
+ * practically useful.
+ */
+const MAX_PROTEIN_PORTION_G = 500;
+const MAX_DRY_CARBOHYDRATE_PORTION_G = 300;
+const MAX_OTHER_PORTION_G = 700;
+const MAX_CALORIE_DEVIATION_KCAL = 300;
+const MAX_CALORIE_DEVIATION_RATIO = 0.35;
 
 function invalidProfile(message: string): never {
   throw new MenuGenerationError("INVALID_PROFILE", message);
@@ -132,6 +149,27 @@ function validateProfiles(profiles: readonly Profile[]): void {
       memberName
     );
   }
+}
+
+function calculateSupportedGoals(
+  profiles: readonly Profile[]
+): Record<MemberId, Goals> {
+  const goalsByMemberId = Object.fromEntries(
+    profiles.map((profile) => [profile.id, calculateGoals(profile)])
+  );
+  for (const profile of profiles) {
+    const caloriesKcal = goalsByMemberId[profile.id].caloriesKcal;
+    if (
+      caloriesKcal < MIN_SUPPORTED_TARGET_CALORIES_KCAL ||
+      caloriesKcal > MAX_SUPPORTED_TARGET_CALORIES_KCAL
+    ) {
+      throw new MenuGenerationError(
+        "UNSUPPORTED_GOAL",
+        `${profile.name}的档案目标约为 ${caloriesKcal} kcal，超出当前本地菜谱的份量缩放能力，已停止生成以避免给出误导性菜单。这个范围只是软件能力边界，不是医学建议；请核对档案和目标设置，特殊饮食需求请咨询医生或注册营养师。`
+      );
+    }
+  }
+  return goalsByMemberId;
 }
 
 /**
@@ -471,29 +509,37 @@ function adjustMemberPortions(
     const current = nutritionForMember(meals, profile.id);
     const gap = goals.proteinG - current.proteinG;
     if (Math.abs(gap) <= 8) break;
-    const target = gap > 0 ? lunchProtein : dinnerProtein;
-    const proteinPerGram = getFood(target.foodId).nutritionPer100g.proteinG / 100;
-    const currentGrams = target.portionsByMemberId[profile.id] ?? 0;
-    target.portionsByMemberId[profile.id] = roundToFive(
-      currentGrams + gap / proteinPerGram / 2,
-      100
-    );
+    for (const target of [lunchProtein, dinnerProtein]) {
+      const proteinPerGram =
+        getFood(target.foodId).nutritionPer100g.proteinG / 100;
+      const currentGrams = target.portionsByMemberId[profile.id] ?? 0;
+      target.portionsByMemberId[profile.id] = roundToFive(
+        currentGrams + gap / proteinPerGram / 2,
+        100
+      );
+    }
   }
 
   const current = nutritionForMember(meals, profile.id);
   const calorieGap = goals.caloriesKcal - current.caloriesKcal;
   if (Math.abs(calorieGap) > 180) {
-    const lunchCarbohydrate = lunch.items.find(
-      (mealItem) => mealItem.role === "carbohydrate"
-    );
-    if (!lunchCarbohydrate) throw new Error("午餐缺少主食");
-    const caloriesPerGram =
-      getFood(lunchCarbohydrate.foodId).nutritionPer100g.caloriesKcal / 100;
-    const currentGrams = lunchCarbohydrate.portionsByMemberId[profile.id] ?? 0;
-    lunchCarbohydrate.portionsByMemberId[profile.id] = roundToFive(
-      currentGrams + (calorieGap / caloriesPerGram) * 0.55,
-      30
-    );
+    const mainMeals = [lunch, dinner];
+    for (const meal of mainMeals) {
+      const carbohydrate = meal.items.find(
+        (mealItem) => mealItem.role === "carbohydrate"
+      );
+      if (!carbohydrate) throw new Error(`${meal.name}缺少主食`);
+      const caloriesPerGram =
+        getFood(carbohydrate.foodId).nutritionPer100g.caloriesKcal / 100;
+      const currentGrams = carbohydrate.portionsByMemberId[profile.id] ?? 0;
+      // Spread the adjustment across both main meals. Putting almost the whole
+      // daily gap into lunch made otherwise ordinary profiles show implausibly
+      // large one-meal portions for lower-energy-density tubers.
+      carbohydrate.portionsByMemberId[profile.id] = roundToFive(
+        currentGrams + (calorieGap / caloriesPerGram) * 0.275,
+        30
+      );
+    }
   }
 }
 
@@ -516,11 +562,54 @@ function snapshotProfiles(profiles: readonly Profile[]): Profile[] {
   }));
 }
 
+/**
+ * Reject combinations the small offline recipe catalog cannot express with
+ * ordinary servings. These checks describe generator capability only: they do
+ * not claim that a particular calorie target or body profile is medically
+ * appropriate.
+ */
+function assertPlanWithinSupportedPortions(plan: DailyPlan): void {
+  for (const profile of plan.profilesSnapshot) {
+    for (const meal of plan.meals) {
+      for (const mealItem of meal.items) {
+        const grams = mealItem.portionsByMemberId[profile.id] ?? 0;
+        const food = getFood(mealItem.foodId);
+        const maximumGrams =
+          mealItem.role === "protein"
+            ? MAX_PROTEIN_PORTION_G
+            : mealItem.role === "carbohydrate" && food.weightState === "dry"
+              ? MAX_DRY_CARBOHYDRATE_PORTION_G
+              : MAX_OTHER_PORTION_G;
+        if (grams > maximumGrams) {
+          throw new MenuGenerationError(
+            "UNSUPPORTED_GOAL",
+            `${profile.name}的当前目标会让${meal.name}中的${food.name}达到 ${grams}g，超出本应用支持的日常单份范围。请核对档案和目标设置；特殊饮食需求请咨询医生或注册营养师。`
+          );
+        }
+      }
+    }
+
+    const goals = plan.goalsByMemberId[profile.id];
+    const actual = plan.nutritionByMemberId[profile.id];
+    const allowedDeviation = Math.max(
+      MAX_CALORIE_DEVIATION_KCAL,
+      goals.caloriesKcal * MAX_CALORIE_DEVIATION_RATIO
+    );
+    if (Math.abs(actual.caloriesKcal - goals.caloriesKcal) > allowedDeviation) {
+      throw new MenuGenerationError(
+        "UNSUPPORTED_GOAL",
+        `${profile.name}的档案目标约为 ${goals.caloriesKcal} kcal，但当前本地食材模板只能组合到约 ${actual.caloriesKcal} kcal，差距过大，已停止生成以避免给出误导性菜单。请核对档案和目标设置；特殊饮食需求请咨询医生或注册营养师。`
+      );
+    }
+  }
+}
+
 export function generateDailyPlan(input: GenerateDailyPlanInput): DailyPlan {
   if (input.profiles.length === 0) {
     throw new MenuGenerationError("NO_MEMBERS", "至少需要一位家庭成员。 ");
   }
   validateProfiles(input.profiles);
+  const goalsByMemberId = calculateSupportedGoals(input.profiles);
   const random = createSeededRandom(input.seed);
   const recipePool = chooseRecipePool(input.preferences);
   const breakfast = chooseBreakfast(input.preferences, random);
@@ -554,9 +643,6 @@ export function generateDailyPlan(input: GenerateDailyPlanInput): DailyPlan {
     buildMainMeal("dinner", dinnerRecipe, dinnerCarbohydrateId, input.profiles)
   ];
 
-  const goalsByMemberId = Object.fromEntries(
-    input.profiles.map((profile) => [profile.id, calculateGoals(profile)])
-  );
   addSnack(meals, input.profiles, goalsByMemberId, input.preferences);
   for (const profile of input.profiles) {
     adjustMemberPortions(meals, profile, goalsByMemberId[profile.id]);
@@ -582,6 +668,7 @@ export function generateDailyPlan(input: GenerateDailyPlanInput): DailyPlan {
     preferencesSnapshot: snapshotPreferences(input.preferences),
     createdAt: input.createdAt ?? new Date().toISOString()
   };
+  assertPlanWithinSupportedPortions(plan);
   const validation = validateDailyPlan(plan);
   if (!validation.valid) {
     throw new MenuGenerationError(

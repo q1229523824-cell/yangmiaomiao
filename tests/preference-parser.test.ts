@@ -233,6 +233,191 @@ describe("parsePreferences", () => {
     expect(naturalCorrection.preferences.allergens).toEqual([]);
   });
 
+  it.each(["牛奶不过敏", "我对牛奶不过敏"])(
+    "不过敏不会被转折词拆开，并且只解除对应过敏原：%s",
+    (input) => {
+      const current = createEmptyPreferences();
+      current.allergens = ["milk", "egg"];
+
+      const result = parsePreferences(input, current);
+
+      expect(result.changed).toBe(true);
+      expect(result.preferences.allergens).toEqual(["egg"]);
+      expect(result.changes).toContainEqual({
+        kind: "remove_allergen",
+        value: "milk",
+      });
+      expect(result.preferences.excludedFoodIds).not.toContain("skim_milk");
+      expect(result.unrecognized).toEqual([]);
+      expect(result.reply).toContain("已移除牛奶/乳制品过敏原记录");
+    },
+  );
+
+  it("鸡蛋不过敏只解除 egg，保留其他过敏原", () => {
+    const current = createEmptyPreferences();
+    current.allergens = ["milk", "egg"];
+
+    const result = parsePreferences("我对鸡蛋不过敏", current);
+
+    expect(result.preferences.allergens).toEqual(["milk"]);
+    expect(result.changes).toContainEqual({
+      kind: "remove_allergen",
+      value: "egg",
+    });
+  });
+
+  it.each([
+    ["牛奶不过敏鸡蛋过敏", "egg", "milk"],
+    ["牛奶过敏鸡蛋不过敏", "milk", "egg"],
+  ] as const)(
+    "无标点混合过敏声明按各自局部语境处理：%s",
+    (input, retained, removed) => {
+      const current = createEmptyPreferences();
+      current.allergens = ["milk", "egg"];
+
+      const result = parsePreferences(input, current);
+
+      expect(result.preferences.allergens).toEqual([retained]);
+      expect(result.changes).toContainEqual({
+        kind: "remove_allergen",
+        value: removed,
+      });
+      expect(result.changes).not.toContainEqual({
+        kind: "remove_allergen",
+        value: retained,
+      });
+      expect(result.unrecognized).toEqual([]);
+    },
+  );
+
+  it("相邻过敏原列表共享末尾的添加声明", () => {
+    const result = parsePreferences(
+      "牛奶和鸡蛋过敏",
+      createEmptyPreferences(),
+    );
+
+    expect(result.preferences.allergens).toEqual(
+      expect.arrayContaining(["milk", "egg"]),
+    );
+    expect(result.changes).toEqual(
+      expect.arrayContaining([
+        { kind: "add_allergen", value: "milk" },
+        { kind: "add_allergen", value: "egg" },
+      ]),
+    );
+    expect(result.unrecognized).toEqual([]);
+  });
+
+  it.each(["牛奶以及鸡蛋过敏", "牛奶跟鸡蛋过敏"])(
+    "支持常见中文过敏原连接词：%s",
+    (input) => {
+      const result = parsePreferences(input, createEmptyPreferences());
+
+      expect(result.preferences.allergens).toEqual(
+        expect.arrayContaining(["milk", "egg"]),
+      );
+      expect(result.unrecognized).toEqual([]);
+    },
+  );
+
+  it("明确取消相邻过敏原列表时只解除列表内项目", () => {
+    const current = createEmptyPreferences();
+    current.allergens = ["milk", "egg", "soy"];
+
+    const result = parsePreferences("取消牛奶和鸡蛋过敏", current);
+
+    expect(result.preferences.allergens).toEqual(["soy"]);
+    expect(result.changes).toEqual(
+      expect.arrayContaining([
+        { kind: "remove_allergen", value: "milk" },
+        { kind: "remove_allergen", value: "egg" },
+      ]),
+    );
+    expect(result.changes).not.toContainEqual({
+      kind: "remove_allergen",
+      value: "soy",
+    });
+    expect(result.unrecognized).toEqual([]);
+  });
+
+  it("少放番茄按当前能力保存为硬排除，并明确告知语义加严", () => {
+    const current = createEmptyPreferences();
+    current.preferredFoodIds = ["tomato"];
+    current.preferredFlavors = ["tomato"];
+
+    const result = parsePreferences("少放番茄", current);
+
+    expect(result.changed).toBe(true);
+    expect(result.preferences.excludedFoodIds).toContain("tomato");
+    expect(result.preferences.preferredFoodIds).not.toContain("tomato");
+    expect(result.preferences.preferredFlavors).not.toContain("tomato");
+    expect(result.reply).toContain("暂不支持少量，已按不放番茄处理");
+    expect(result.unrecognized).toEqual([]);
+  });
+
+  it("少放辣被识别为减量而不是辣味偏好，并准确说明能力边界", () => {
+    const result = parsePreferences("少放辣", createEmptyPreferences());
+
+    expect(result.changed).toBe(false);
+    expect(result.preferences.preferredFlavors).not.toContain("spicy");
+    expect(result.changes).toEqual([]);
+    expect(result.unrecognized).toEqual([]);
+    expect(result.reply).toContain("已识别为减少辣味");
+    expect(result.reply).toContain("本次没有新增偏好");
+  });
+
+  it.each(["少放辣", "不要辣"])(
+    "负向口味至少取消已有辣味优先，但不冒充严格排除约束：%s",
+    (input) => {
+      const current = createEmptyPreferences();
+      current.preferredFlavors = ["spicy", "garlic"];
+
+      const result = parsePreferences(input, current);
+
+      expect(result.changed).toBe(true);
+      expect(result.preferences.preferredFlavors).toEqual(["garlic"]);
+      expect(result.changes).toContainEqual({
+        kind: "remove_flavor",
+        value: "spicy",
+      });
+      expect(result.reply).toContain("已取消辣味优先");
+      expect(result.reply).not.toContain("将它设为辣味优先");
+      expect(result.reply).toMatch(/不等同于严格少放|不能保存严格排除/);
+    },
+  );
+
+  it("减量标记只作用于最近对象，不污染同片段里的普通排除", () => {
+    const result = parsePreferences("少放辣不要番茄", createEmptyPreferences());
+
+    expect(result.preferences.excludedFoodIds).toContain("tomato");
+    expect(result.preferences.preferredFlavors).not.toContain("spicy");
+    expect(result.reply).toContain("避开番茄");
+    expect(result.reply).not.toContain("按不放番茄处理");
+  });
+
+  it("设备故障描述不会被当作烹饪方式偏好", () => {
+    const result = parsePreferences("空气炸锅坏了", createEmptyPreferences());
+
+    expect(result.changed).toBe(false);
+    expect(result.preferences.preferredCookingMethods).not.toContain("air_fryer");
+    expect(result.changes).toEqual([]);
+    expect(result.unrecognized).toEqual(["空气炸锅坏了"]);
+    expect(result.reply).toContain("暂未识别：空气炸锅坏了");
+  });
+
+  it.each(["不要鱼香肉丝", "不要鱼油"])(
+    "不把不支持的含鱼复合词误判为排除所有鱼类：%s",
+    (input) => {
+      const result = parsePreferences(input, createEmptyPreferences());
+
+      expect(result.changed).toBe(false);
+      expect(result.preferences.excludedFoodGroups).not.toContain("fish");
+      expect(result.changes).toEqual([]);
+      expect(result.unrecognized).toEqual([input]);
+      expect(result.reply).toContain(`暂未识别：${input}`);
+    },
+  );
+
   it("支持有限且明确的其他过敏原词汇", () => {
     const result = parsePreferences(
       "鸡蛋过敏，豆制品不耐受，海鲜过敏，麸质过敏",

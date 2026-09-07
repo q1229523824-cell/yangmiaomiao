@@ -1,7 +1,7 @@
 <view class="page">
   <view class="header-block">
     <text class="title">🕘 历史菜单</text>
-    <text class="subtitle">最多保留 60 份，全部存放在当前设备。恢复当时的普通偏好，但不会解除当前过敏原保护。</text>
+    <text class="subtitle">最多保留 60 份，全部存放在当前设备。恢复当时的普通偏好，但不会解除当前过敏原过滤记录。</text>
   </view>
 
   <view class="card status-card" wx:if="{{loading}}">

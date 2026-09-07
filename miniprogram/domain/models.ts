@@ -206,6 +206,7 @@ export type PreferenceChangeKind =
   | "allow_whey"
   | "prefer_method"
   | "prefer_flavor"
+  | "remove_flavor"
   | "light_dinner"
   | "reset";
 
