@@ -69,6 +69,6 @@
 - [x] 源码默认双人身高/体重已替换为明确虚构、可编辑的演示值。
 - [ ] 由项目所有者决定许可证；未选择时不要擅自添加。
 - [x] 本地分支名对齐为 `main`，使用普通 push 推送目标空仓库，未 force push。
-- [x] GitHub Actions 的 Node.js 22 `npm ci` 和 `npm run verify` 已通过（最终代码推送后补记 run 号）。
+- [x] GitHub Actions 的 Node.js 22 `npm ci` 和 `npm run verify` 已通过（代码提交 run `34100336431`）。
 - [ ] 在真实 AppID 下上传体验版，并邀请指定体验成员扫码验证。
 - [ ] 保存体验版版本号、上传时间及回归结果。
