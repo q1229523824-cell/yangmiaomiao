@@ -53,7 +53,7 @@
 
 ## 开发和发布安全
 
-- 仓库中的 `touristappid` 是占位值，不是账号凭据。
+- 仓库中的 `project.config.json` 使用项目所有者提供的 AppID 作为公开项目标识；AppID 不是账号密钥。
 - AppSecret、访问令牌、私钥及真实测试数据不得写入小程序前端或提交到仓库。
 - 源码只包含明确虚构、可编辑的默认档案；用户实际填写的身体数据仅进入当前设备本地存储，不提交到仓库。
 - `project.private.config.json`、环境文件和常见密钥文件已列入 `.gitignore`。

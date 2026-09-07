@@ -14,15 +14,15 @@
 
 ## 2. 账号与项目配置
 
-- [ ] 准备属于该产品的真实小程序 AppID。
-- [ ] 使用有权限的微信账号登录微信开发者工具。
-- [ ] 导入仓库根目录，并确认项目根为 `miniprogram/`。
-- [ ] 将占位 `touristappid` 替换为真实 AppID 后编译。
+- [x] 已配置项目所有者提供的真实小程序 AppID `wxd900965119113522`。
+- [x] 使用有权限的微信账号登录微信开发者工具（CLI `islogin` 返回 `login: true`）。
+- [x] 导入仓库根目录，并用 `cli open --project` 成功打开项目；项目根为 `miniprogram/`。
+- [x] `project.config.json` 已使用真实 AppID；完整编译和交互仍需人工确认。
 - [ ] 确认 AppSecret、访问令牌和私钥没有进入前端或 Git。
 
-`touristappid` 只是仓库占位，不能作为真实身份完成登录态模拟器、真机预览、上传和发布。
+AppID 只用于标识小程序项目；云服务不是本项目运行所必需的，当前选择“不使用云服务”。
 
-当前明确证据：CLI `islogin` 返回未登录；占位配置的 `cli open` 返回 code 10：“不存在此 AppID”。取得真实 AppID 并登录后，必须重新执行完整项目打开和模拟器检查。
+当前明确证据：CLI `islogin` 返回 `login: true`，使用真实 AppID 的 `cli open --project` 返回成功。仍需在开发者工具中手动完成完整编译、模拟器核心流程、断网检查和体验版上传。
 
 ## 3. 模拟器核心流程
 
