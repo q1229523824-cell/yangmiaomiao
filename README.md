@@ -73,6 +73,8 @@ npm run verify:wechat
 
 当前验收机上，开发者工具 CLI 的 `islogin` 已返回 `login: true`，使用该 AppID 执行 `cli open --project` 已成功打开项目；这仍不等于完整模拟器、断网真机或体验版验收已经完成。
 
+需要手机试用时，在已登录的开发者工具环境执行 `cli.bat preview --project "D:\\ChatGPT\\New project" --qr-format terminal` 生成预览二维码，再用手机微信扫码。预览二维码不是正式发布；若提示暂无体验权限，需要先在小程序后台把扫码微信加入体验成员。
+
 ## 使用方式
 
 1. 首次进入“今日”页会在本机生成第一份菜单。

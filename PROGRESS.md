@@ -32,7 +32,7 @@
 
 1. `npm run verify`：通过，证明 TypeScript 和本地自动化测试通过。
 2. `npm run verify:wechat`：已在微信开发者工具 `2.02.2608060` 上通过，官方 `wcc/wcsc` 共验证 4 个 WXML 和 5 个 WXSS 文件。
-3. 完整项目/模拟器/真机：未完成。当前已配置真实 AppID `wxd900965119113522`，开发者工具 CLI `islogin` 返回 `login: true`，`cli open --project` 已成功；完整编译、模拟器、断网真机和体验版仍待人工验收。
+3. 完整项目/模拟器/真机：未完成。当前已配置真实 AppID `wxd900965119113522`，开发者工具 CLI `islogin` 返回 `login: true`，`cli open --project` 已成功，并已生成 141,067 字节手机预览包；完整编译、模拟器、断网真机和体验版仍待人工验收。
 
 第二层只验证原生模板和样式语法，不能证明真实 AppID 下的完整项目可启动，也不能替代交互和真机验收。
 

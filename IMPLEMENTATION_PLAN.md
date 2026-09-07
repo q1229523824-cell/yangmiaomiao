@@ -49,6 +49,7 @@
 
 - [x] `npm run verify:wechat` 在开发者工具 `2.02.2608060` 上通过：4 个 WXML、5 个 WXSS。
 - [x] 已配置真实 AppID `wxd900965119113522`；CLI `islogin` 返回 `login: true`，`cli open --project` 成功。
+- [x] 使用真实 AppID 生成手机预览二维码，预览包大小为 141,067 字节。
 - [ ] 使用真实 AppID 和登录态开发者工具完成模拟器核心流程。
 - [ ] 模拟器断网后重复核心流程。
 - [ ] 使用真实 AppID 生成体验版。
