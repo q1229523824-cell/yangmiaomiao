@@ -41,6 +41,10 @@ interface AllergenDefinition {
   aliases: readonly string[];
 }
 
+interface AllergenMatch extends TextMatch {
+  definition: AllergenDefinition;
+}
+
 const FOOD_DEFINITIONS: readonly FoodDefinition[] = [
   { id: "chicken_breast", label: "鸡胸肉", aliases: ["鸡胸肉", "鸡胸"] },
   {
@@ -169,7 +173,7 @@ const ALLERGEN_DEFINITIONS: readonly AllergenDefinition[] = [
   { allergens: ["gluten"], label: "麸质", aliases: ["麸质", "小麦"] },
 ];
 
-type AllergenAction = "add" | "remove";
+type AllergenAction = "add" | "remove" | "preserve";
 
 /**
  * Infer one allergen's action from its own immediate context.
@@ -184,14 +188,6 @@ function inferAllergenAction(
   allMatches: readonly TextMatch[],
 ): AllergenAction | undefined {
   const directAfter = text.slice(match.end);
-  if (
-    /^(?:不过敏|可以耐受|没有过敏(?:反应)?|无过敏(?:反应)?)/.test(
-      directAfter,
-    )
-  ) {
-    return "remove";
-  }
-
   const orderedMatches = [...allMatches].sort(
     (left, right) => left.start - right.start || right.end - left.end,
   );
@@ -224,6 +220,20 @@ function inferAllergenAction(
   const lastMatch = orderedMatches[lastIndex] ?? match;
   const beforeList = text.slice(0, firstMatch.start);
   const afterList = text.slice(lastMatch.end);
+  // A negated correction is not permission to remove a safety record. Claim
+  // this phrase before ordinary food parsing can treat “过敏” as a new dislike.
+  if (
+    /(?:不(?:要|能|可以|必|用|想|需要)?|别|没有|尚未|并未|未|无需)(?:再|去|帮我|给我)*(?:取消|删除|移除|解除|清除|纠正)(?:一下)?(?:对)?$/.test(beforeList)
+  ) {
+    return "preserve";
+  }
+  if (
+    /^(?:不过敏|可以耐受|没有过敏(?:反应)?|无过敏(?:反应)?)/.test(
+      directAfter,
+    )
+  ) {
+    return "remove";
+  }
   const sharedRemovalAfter = /^(?:都)?(?:不过敏|可以耐受)/.test(afterList);
   const sharedClaimAfter = /^(?:都)?(?:不能耐受|不耐受|会过敏|过敏)/.test(
     afterList,
@@ -399,7 +409,7 @@ const FLAVOR_DEFINITIONS: ReadonlyArray<{
   { value: "garlic", label: "蒜香", aliases: ["蒜蓉", "蒜香"] },
   { value: "black_pepper", label: "黑胡椒", aliases: ["黑胡椒", "黑椒"] },
   { value: "cumin", label: "孜然", aliases: ["孜然"] },
-  { value: "tomato", label: "番茄味", aliases: ["番茄", "酸香"] },
+  { value: "tomato", label: "番茄味", aliases: ["番茄", "西红柿", "酸香"] },
   { value: "lemon", label: "柠檬味", aliases: ["柠檬"] },
   { value: "light", label: "清淡口味", aliases: ["清淡"] },
 ];
@@ -549,21 +559,57 @@ function foodMatches(text: string): FoodMatch[] {
 
   candidates.sort((a, b) => a.start - b.start || b.end - b.start - (a.end - a.start));
   const selected: FoodMatch[] = [];
-  const seen = new Set<string>();
   for (const candidate of candidates) {
-    const key = candidate.id ? `food:${candidate.id}` : `group:${candidate.group}`;
-    if (seen.has(key) || selected.some((item) => overlaps(item, candidate))) continue;
+    // Keep later occurrences of the same ingredient, including aliases such
+    // as 番茄/西红柿. Their latest intent must be applied in textual order.
+    // Overlap filtering still keeps 鸡胸肉 intact instead of splitting 鸡胸.
+    if (selected.some((item) => overlaps(item, candidate))) continue;
     selected.push(candidate);
-    seen.add(key);
+  }
+  return selected;
+}
+
+function aliasMatches(text: string, aliases: readonly string[]): TextMatch[] {
+  const matches = aliases.flatMap((alias) => findAll(text, alias));
+  matches.sort(
+    (a, b) => a.start - b.start || b.end - b.start - (a.end - a.start),
+  );
+  const selected: TextMatch[] = [];
+  for (const match of matches) {
+    if (!selected.some((candidate) => overlaps(candidate, match))) selected.push(match);
   }
   return selected;
 }
 
 function firstAliasMatch(text: string, aliases: readonly string[]): TextMatch | undefined {
-  const matches = aliases.flatMap((alias) => findAll(text, alias));
-  return matches.sort(
-    (a, b) => a.start - b.start || b.end - b.start - (a.end - a.start),
-  )[0];
+  return aliasMatches(text, aliases)[0];
+}
+
+function lastAliasMatch(text: string, aliases: readonly string[]): TextMatch | undefined {
+  const matches = aliasMatches(text, aliases);
+  return matches[matches.length - 1];
+}
+
+function allergenMatches(text: string): AllergenMatch[] {
+  const candidates = ALLERGEN_DEFINITIONS.flatMap((definition) =>
+    definition.aliases.flatMap((alias) =>
+      findAll(text, alias).map((match) => ({ ...match, definition })),
+    ),
+  ).sort(
+    (left, right) =>
+      left.start - right.start ||
+      right.end - right.start - (left.end - left.start),
+  );
+
+  // Prefer the longest alias at one location (for example “鱼类” over the
+  // nested “鱼”), but keep later occurrences so a correction in the same
+  // unpunctuated sentence can override an earlier declaration.
+  const selected: AllergenMatch[] = [];
+  for (const candidate of candidates) {
+    if (selected.some((match) => overlaps(match, candidate))) continue;
+    selected.push(candidate);
+  }
+  return selected;
 }
 
 function splitFragments(input: string): string[] {
@@ -647,18 +693,26 @@ export function parsePreferences(
     const markers = polarityMarkers(fragment);
     let recognized = false;
     const allergenRanges: TextMatch[] = [];
-    const allergenMatches = ALLERGEN_DEFINITIONS.map((definition) =>
-      firstAliasMatch(fragment, definition.aliases),
-    ).filter((match): match is TextMatch => Boolean(match));
+    const matchedAllergens = allergenMatches(fragment);
 
-    for (const definition of ALLERGEN_DEFINITIONS) {
-      const match = firstAliasMatch(fragment, definition.aliases);
-      if (!match) continue;
-      const allergenAction = inferAllergenAction(fragment, match, allergenMatches);
+    // Apply declarations in the order the user wrote them. This matters when
+    // a broad “海鲜” rule and a specific “鱼/虾” correction coexist: the later
+    // declaration must win only for the allergen it addresses.
+    for (const match of matchedAllergens) {
+      const { definition } = match;
+      const allergenAction = inferAllergenAction(
+        fragment,
+        match,
+        matchedAllergens,
+      );
       if (!allergenAction) continue;
       allergenRanges.push(match);
       recognized = true;
       recognizedInput = true;
+      if (allergenAction === "preserve") {
+        warnings.push(`已识别为不取消${definition.label}过敏原记录，现有记录保持不变。`);
+        continue;
+      }
       const before = clonePreferences(preferences);
       for (const allergen of definition.allergens) {
         if (allergenAction === "remove") {
@@ -868,8 +922,13 @@ export function parsePreferences(
     }
 
     for (const flavor of FLAVOR_DEFINITIONS) {
-      const match = firstAliasMatch(fragment, flavor.aliases);
+      const match = lastAliasMatch(fragment, flavor.aliases);
       if (!match || (flavor.value === "light" && dinnerLight)) continue;
+      // A soft flavor mention cannot resurrect a tomato preference after the
+      // last concrete food instruction excluded 番茄 or its 西红柿 alias.
+      if (flavor.value === "tomato" && preferences.excludedFoodIds.includes("tomato")) {
+        continue;
+      }
       const polarityMarker = inferPolarityMarker(match, markers);
       const polarity = polarityMarker?.polarity;
       const reductionRequested = Boolean(polarityMarker?.reduction);

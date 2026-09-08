@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { RECIPES } from "../miniprogram/data/catalog";
+import { seedFromText } from "../miniprogram/domain/menu-generator";
+import * as planValidator from "../miniprogram/domain/plan-validator";
 import { removePreference } from "../miniprogram/domain/preference-actions";
 import { createDefaultAppState } from "../miniprogram/repositories/app-state";
 import {
@@ -95,6 +97,78 @@ describe("plan lifecycle", () => {
     expect(changed.generationCounter).toBe(2);
     expect(changed.currentPlan?.id).not.toBe(initial.currentPlan?.id);
     expect(changed.history).toHaveLength(2);
+  });
+
+  it("recovers an unusable random combination without sticking or consuming the next plan ID", () => {
+    const initial = ensureInitialPlan(createDefaultAppState(), {
+      date: FIRST_DATE
+    }).state;
+    const regressionState = {
+      ...initial,
+      generationCounter: 13,
+      profiles: [{
+        ...initial.profiles[1],
+        heightCm: 180,
+        weightKg: 60,
+        ageYears: 25,
+        goalSettings: {
+          ...initial.profiles[1].goalSettings,
+          activityFactor: 1.725,
+          calorieTargetRatio: 1
+        }
+      }]
+    };
+    const recovered = regeneratePlan(regressionState, { date: NEXT_DATE });
+    const next = regeneratePlan(recovered, { date: NEXT_DATE });
+
+    expect(recovered.generationCounter).toBe(14);
+    expect(recovered.currentPlan?.seed).toBe(465688859);
+    expect(next.generationCounter).toBe(15);
+    expect(next.currentPlan?.seed).toBe(seedFromText(`${NEXT_DATE}:15`));
+    expect(next.currentPlan?.id).not.toBe(recovered.currentPlan?.id);
+    expect(next.history).toHaveLength(3);
+    expect(regressionState.generationCounter).toBe(13);
+    expect(regressionState.currentPlan).toBe(initial.currentPlan);
+  });
+
+  it("keeps the previous plan, history and counter when every candidate exceeds portion limits", () => {
+    const initial = ensureInitialPlan(createDefaultAppState(), {
+      date: FIRST_DATE
+    }).state;
+    const impossible = {
+      ...initial,
+      profiles: [{
+        ...initial.profiles[0],
+        heightCm: 160,
+        weightKg: 180,
+        ageYears: 60,
+        goalSettings: {
+          ...initial.profiles[0].goalSettings,
+          activityFactor: 1.2,
+          calorieTargetRatio: 0.75
+        }
+      }]
+    };
+    const before = structuredClone(impossible);
+    expect(() => regeneratePlan(impossible, { date: NEXT_DATE }))
+      .toThrowError("原有菜单不会被替换");
+    expect(impossible).toEqual(before);
+  });
+
+  it("does not turn a programming error into a saved preference conflict", async () => {
+    const initial = ensureInitialPlan(createDefaultAppState(), { date: FIRST_DATE }).state;
+    const validation = vi.spyOn(planValidator, "validateDailyPlan")
+      .mockReturnValue({ valid: false, errors: ["菜单结构损坏"] });
+    const save = vi.fn();
+    try {
+      await expect(savePreferencePlanChange(initial, initial.preferences, {
+        date: FIRST_DATE
+      }, save)).rejects.toMatchObject({ code: "INVALID_PLAN" });
+      expect(save).not.toHaveBeenCalled();
+      expect(validation).toHaveBeenCalledTimes(1);
+    } finally {
+      validation.mockRestore();
+    }
   });
 
   it("keeps an impossible preference edit so conflicts can be removed progressively", () => {

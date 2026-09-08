@@ -5,10 +5,6 @@ import {
   refreshFlagsAfterProfileSave
 } from "../../repositories/app-state";
 import {
-  clearAllOwnedData,
-  createWxStorageAdapter
-} from "../../repositories/storage";
-import {
   ACTIVITY_OPTIONS,
   TARGET_OPTIONS,
   cloneDrafts,
@@ -33,6 +29,7 @@ let drafts: ProfileDraft[] = [];
 let baselineDrafts: ProfileDraft[] = [];
 let sourceProfiles: Profile[] = [];
 let operationBusy = false;
+let refreshRequested = false;
 
 function cloneProfiles(profiles: readonly Profile[]): Profile[] {
   return profiles.map((profile) => ({
@@ -83,12 +80,32 @@ Page({
   async onShow() {
     // Tab pages remain alive. Do not silently discard edits when the user briefly
     // checks another tab and comes back.
-    if (this.data.hasUnsavedChanges || operationBusy) return;
+    if (operationBusy) {
+      refreshRequested = true;
+      return;
+    }
+    if (this.data.hasUnsavedChanges) return;
     await this.loadProfiles();
+  },
+
+  onHide() {
+    refreshRequested = false;
+  },
+
+  async flushPendingRefresh() {
+    if (!refreshRequested || operationBusy) return;
+    refreshRequested = false;
+    // Failed saves must retain the user's draft for correction or retry.
+    if (this.data.hasUnsavedChanges) return;
+    const savedMessage = this.data.savedMessage;
+    const pageError = this.data.pageError;
+    await this.loadProfiles();
+    if (!this.data.loadFailed) this.setData({ savedMessage, pageError });
   },
 
   async loadProfiles() {
     if (operationBusy) return;
+    refreshRequested = false;
     operationBusy = true;
     this.setData({
       loading: true,
@@ -122,6 +139,7 @@ Page({
     } finally {
       operationBusy = false;
       this.setData({ loading: false, busy: false, saveDisabled: true });
+      await this.flushPendingRefresh();
     }
   },
 
@@ -198,8 +216,20 @@ Page({
     );
     drafts = validations.map((result) => result.draft);
     this.setData({ drafts, savedMessage: "", pageError: "" });
-    if (validations.some((result) => !result.profile)) {
+    const firstInvalidIndex = validations.findIndex((result) => !result.profile);
+    if (firstInvalidIndex !== -1) {
       wx.showToast({ title: "请检查标红字段", icon: "none" });
+      try {
+        await wx.pageScrollTo({
+          selector: `#profile-member-${firstInvalidIndex}`,
+          duration: 250
+        });
+      } catch {
+        wx.showToast({
+          title: `请检查第 ${firstInvalidIndex + 1} 位成员`,
+          icon: "none"
+        });
+      }
       return;
     }
 
@@ -207,13 +237,16 @@ Page({
     operationBusy = true;
     this.setData({ busy: true, saveDisabled: true });
     try {
-      const state = await getAppStateRepository().load();
-      const profilesChanged = !profilesEqual(state.profiles, nextProfiles);
-      const markPlanStale = profilesChanged && Boolean(state.currentPlan);
-      await getAppStateRepository().save({
-        ...state,
-        profiles: cloneProfiles(nextProfiles),
-        ...refreshFlagsAfterProfileSave(state, profilesChanged)
+      const committed = await getAppStateRepository().transaction((latest) => {
+        const profilesChanged = !profilesEqual(latest.profiles, nextProfiles);
+        return {
+          state: {
+            ...latest,
+            profiles: cloneProfiles(nextProfiles),
+            ...refreshFlagsAfterProfileSave(latest, profilesChanged)
+          },
+          value: profilesChanged && Boolean(latest.currentPlan)
+        };
       });
 
       sourceProfiles = cloneProfiles(nextProfiles);
@@ -223,7 +256,7 @@ Page({
         drafts,
         hasUnsavedChanges: false,
         saveDisabled: true,
-        savedMessage: markPlanStale
+        savedMessage: committed.value
           ? "已保存在本机。当前菜单保持不变，请到今日页主动重新计算。"
           : "已保存在本机。"
       });
@@ -240,6 +273,7 @@ Page({
         busy: false,
         saveDisabled: !this.data.hasUnsavedChanges
       });
+      await this.flushPendingRefresh();
     }
   },
 
@@ -260,7 +294,7 @@ Page({
         return;
       }
 
-      await clearAllOwnedData(createWxStorageAdapter());
+      await getAppStateRepository().clearOwnedData();
       const reset = createDefaultAppState();
       sourceProfiles = cloneProfiles(reset.profiles);
       drafts = reset.profiles.map(profileToDraft);
@@ -285,6 +319,7 @@ Page({
         loading: false,
         saveDisabled: !this.data.hasUnsavedChanges
       });
+      await this.flushPendingRefresh();
     }
   }
 });

@@ -11,6 +11,7 @@ import {
 let state: AppState | undefined;
 let operationInProgress = false;
 let loadInProgress = false;
+let refreshRequested = false;
 
 Page({
   data: {
@@ -22,11 +23,30 @@ Page({
   },
 
   async onShow() {
+    if (operationInProgress || loadInProgress) {
+      refreshRequested = true;
+      return;
+    }
     await this.loadHistory();
+  },
+
+  onHide() {
+    refreshRequested = false;
+  },
+
+  async flushPendingRefresh() {
+    if (!refreshRequested || operationInProgress || loadInProgress) return;
+    refreshRequested = false;
+    const previousError = this.data.errorMessage;
+    await this.loadHistory();
+    if (previousError && !this.data.errorMessage) {
+      this.setData({ errorMessage: previousError });
+    }
   },
 
   async loadHistory() {
     if (operationInProgress || loadInProgress) return;
+    refreshRequested = false;
     loadInProgress = true;
     this.setData({ loading: true, errorMessage: "" });
     try {
@@ -51,6 +71,7 @@ Page({
     } finally {
       loadInProgress = false;
       this.setData({ loading: false });
+      await this.flushPendingRefresh();
     }
   },
 
@@ -67,7 +88,7 @@ Page({
   },
 
   async onRestoreTap(event: WechatMiniprogram.TouchEvent) {
-    if (!state || operationInProgress) return;
+    if (!state || operationInProgress || loadInProgress) return;
     const planId = String(event.currentTarget.dataset.planId ?? "");
     const item = this.data.items.find((candidate) => candidate.id === planId);
     if (!item || item.isCurrent) return;
@@ -88,18 +109,9 @@ Page({
       });
       if (!result.confirm) return;
 
-      const restored = restorePlanFromHistory(state, planId);
-      try {
-        await getAppStateRepository().save(restored);
-      } catch (error) {
-        this.setData({
-          errorMessage:
-            error instanceof Error
-              ? `保存恢复结果失败：${error.message}`
-              : "保存恢复结果失败，原菜单没有改变。",
-        });
-        return;
-      }
+      const restored = await getAppStateRepository().update((latest) =>
+        restorePlanFromHistory(latest, planId)
+      );
 
       state = restored;
       this.setData({
@@ -124,6 +136,7 @@ Page({
     } finally {
       operationInProgress = false;
       this.setData({ busy: false, restoringPlanId: "" });
+      await this.flushPendingRefresh();
     }
   },
 });

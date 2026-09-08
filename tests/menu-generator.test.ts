@@ -8,6 +8,7 @@ import {
 } from "../miniprogram/data/catalog";
 import {
   generateDailyPlan,
+  MAX_PLAN_GENERATION_ATTEMPTS,
   MenuGenerationError,
   seedFromText
 } from "../miniprogram/domain/menu-generator";
@@ -250,6 +251,8 @@ describe("generateDailyPlan", () => {
     } catch (error) {
       expect(error).toMatchObject({ code: "UNSUPPORTED_GOAL" });
       expect((error as Error).message).toContain("达到");
+      expect((error as Error).message).toContain(`已尝试 ${MAX_PLAN_GENERATION_ATTEMPTS} 个`);
+      expect((error as Error).message).toContain("原有菜单不会被替换");
     }
   });
 

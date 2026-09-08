@@ -25,7 +25,7 @@
       <checkbox value="{{item.foodId}}" checked="{{item.checked}}" color="#f5b800" disabled="{{busy}}" />
       <view class="shopping-content">
         <view class="shopping-main">
-          <text>{{item.name}}</text>
+          <text class="shopping-name">{{item.name}}</text>
           <text class="grams">{{item.gramsText}}</text>
         </view>
         <text class="detail">{{item.detail}}</text>

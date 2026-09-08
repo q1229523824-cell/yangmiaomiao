@@ -11,8 +11,9 @@ import {
 } from "../../repositories/app-state";
 import {
   ensureInitialPlan,
+  preparePreferencePlanChange,
   regeneratePlan,
-  savePreferencePlanChange
+  type PreferencePlanStateResult
 } from "../../services/plan-service";
 import {
   preferenceSummary,
@@ -22,6 +23,13 @@ import {
 
 let state: AppState | undefined;
 let operationInProgress = false;
+let refreshRequested = false;
+
+type PreferenceChange = (current: AppState["preferences"]) => {
+  preferences: AppState["preferences"];
+  reply: string;
+  changed?: boolean;
+};
 
 function localDate(): string {
   const now = new Date();
@@ -58,20 +66,36 @@ Page({
   },
 
   async onShow() {
+    if (operationInProgress) {
+      refreshRequested = true;
+      return;
+    }
     await this.loadState();
+  },
+
+  onHide() {
+    refreshRequested = false;
+  },
+
+  async flushPendingRefresh() {
+    if (!refreshRequested || operationInProgress) return;
+    refreshRequested = false;
+    const previousError = this.data.errorMessage;
+    await this.loadState();
+    if (previousError && !this.data.errorMessage) {
+      this.setData({ errorMessage: previousError });
+    }
   },
 
   async loadState() {
     if (operationInProgress) return;
+    refreshRequested = false;
     operationInProgress = true;
     this.setData({ loading: true, busy: true, errorMessage: "" });
     try {
-      state = await getAppStateRepository().load();
-      const result = ensureInitialPlan(state, { date: localDate() });
-      state = result.state;
-      if (result.generated) {
-        await getAppStateRepository().save(state);
-      }
+      state = await getAppStateRepository().update((latest) =>
+        ensureInitialPlan(latest, { date: localDate() }).state
+      );
       this.renderState();
     } catch (error) {
       state = undefined;
@@ -92,11 +116,26 @@ Page({
     } finally {
       operationInProgress = false;
       this.setData({ busy: false });
+      await this.flushPendingRefresh();
     }
   },
 
   renderState() {
-    if (!state?.currentPlan) return;
+    if (!state?.currentPlan) {
+      this.setData({
+        loading: false,
+        dateText: "",
+        profiles: [],
+        meals: [],
+        preferenceTags: [],
+        hasRemovablePreferences: false,
+        hasAllergens: false,
+        planNotice: "",
+        planNoticeIsWarning: false,
+        planBlockedByPreferences: false
+      });
+      return;
+    }
     const isOldDate = state.currentPlan.date !== localDate();
     const planBlockedByPreferences =
       state.planNeedsRefresh && state.planRefreshReason === "preferences_changed";
@@ -148,14 +187,24 @@ Page({
     void this.loadState();
   },
 
+  async onGoProfile() {
+    try {
+      await wx.switchTab({ url: "/pages/profile/profile" });
+    } catch {
+      wx.showToast({ title: "请切换到档案页", icon: "none" });
+    }
+  },
+
   onRemovePreference(event: WechatMiniprogram.TouchEvent) {
     if (!state || operationInProgress) return;
     const kind = String(
       event.currentTarget.dataset.kind ?? ""
     ) as RemovablePreferenceKind;
     const value = String(event.currentTarget.dataset.value ?? "");
-    const preferences = removePreference(state.preferences, kind, value);
-    void this.applyDirectPreferenceChange(preferences, "已移除这项偏好，并重新计算菜单。 ");
+    void this.applyDirectPreferenceChange((preferences) => ({
+      preferences: removePreference(preferences, kind, value),
+      reply: "已移除这项偏好，并重新计算菜单。"
+    }));
   },
 
   async onClearPreferences() {
@@ -169,10 +218,10 @@ Page({
         confirmText: "清空"
       });
       if (!result.confirm || !state) return;
-      await this.persistPreferenceChange(
-        resetPreferences(state.preferences),
-        "普通偏好已清空；过敏原资料仍然保留。"
-      );
+      await this.persistPreferenceChange((preferences) => ({
+        preferences: resetPreferences(preferences),
+        reply: "普通偏好已清空；过敏原资料仍然保留。"
+      }));
     } catch (error) {
       this.setData({
         errorMessage:
@@ -181,54 +230,64 @@ Page({
     } finally {
       operationInProgress = false;
       this.setData({ busy: false });
+      await this.flushPendingRefresh();
     }
   },
 
-  async applyDirectPreferenceChange(
-    preferences: AppState["preferences"],
-    reply: string
-  ) {
+  async applyDirectPreferenceChange(change: PreferenceChange) {
     if (!state || operationInProgress) return;
     operationInProgress = true;
     this.setData({ busy: true, errorMessage: "" });
     try {
-      await this.persistPreferenceChange(preferences, reply);
+      await this.persistPreferenceChange(change);
     } finally {
       operationInProgress = false;
       this.setData({ busy: false });
+      await this.flushPendingRefresh();
     }
   },
 
-  async persistPreferenceChange(
-    preferences: AppState["preferences"],
-    successReply: string
-  ) {
+  async persistPreferenceChange(change: PreferenceChange) {
     if (!state) return;
-    const previousState = state;
     try {
-      const result = await savePreferencePlanChange(
-        previousState,
-        preferences,
-        { date: localDate() },
-        (nextState) => getAppStateRepository().save(nextState)
-      );
-      state = result.state;
+      const committed = await getAppStateRepository().transaction<{
+        reply: string;
+        planResult: PreferencePlanStateResult | null;
+      }>((latest) => {
+        const edited = change(latest.preferences);
+        if (edited.changed === false) {
+          return {
+            state: latest,
+            value: { reply: edited.reply, planResult: null }
+          };
+        }
+        const result = preparePreferencePlanChange(
+          latest,
+          edited.preferences,
+          { date: localDate() }
+        );
+        return {
+          state: result.state,
+          value: { reply: edited.reply, planResult: result }
+        };
+      });
+      state = committed.state;
+      const result = committed.value.planResult;
       this.setData({
-        assistantReply: result.generated
-          ? successReply
+        assistantReply: !result || result.generated
+          ? committed.value.reply
           : "偏好修改已保存，请继续移除冲突项后重新计算。"
       });
       this.renderState();
-      if (result.generationError) {
+      if (result?.generationError) {
         this.setData({
           errorMessage: `${result.generationError.message} 修改已保存，旧菜单已隐藏。`
         });
       }
     } catch (error) {
-      state = previousState;
-      this.renderState();
+      await this.refreshAfterFailedMutation();
       this.setData({
-        assistantReply: "偏好修改未保存，当前设置和菜单都没有改变。",
+        assistantReply: "本次偏好修改未保存，请稍后重试。",
         errorMessage:
           error instanceof Error
             ? `保存偏好失败：${error.message}`
@@ -237,23 +296,29 @@ Page({
     }
   },
 
+  async refreshAfterFailedMutation() {
+    try {
+      state = await getAppStateRepository().load();
+    } catch {
+      state = undefined;
+    }
+    this.renderState();
+  },
+
   async applyPreference(text: string) {
     const input = text.trim();
     if (!input || !state || operationInProgress) return;
-    const result = parsePreferences(input, state.preferences);
     this.setData({ preferenceInput: "" });
-    if (!result.changed) {
-      this.setData({ assistantReply: result.reply });
-      return;
-    }
-
     operationInProgress = true;
     this.setData({ busy: true, errorMessage: "" });
     try {
-      await this.persistPreferenceChange(result.preferences, result.reply);
+      await this.persistPreferenceChange((preferences) =>
+        parsePreferences(input, preferences)
+      );
     } finally {
       operationInProgress = false;
       this.setData({ busy: false });
+      await this.flushPendingRefresh();
     }
   },
 
@@ -262,18 +327,20 @@ Page({
     operationInProgress = true;
     this.setData({ busy: true, errorMessage: "" });
     try {
-      const nextState = regeneratePlan(state, { date: localDate() });
-      await getAppStateRepository().save(nextState);
-      state = nextState;
+      state = await getAppStateRepository().update((latest) =>
+        regeneratePlan(latest, { date: localDate() })
+      );
       this.setData({ assistantReply: "已换一套菜单，所有偏好继续保留。" });
       this.renderState();
     } catch (error) {
+      await this.refreshAfterFailedMutation();
       this.setData({
         errorMessage: error instanceof Error ? error.message : "生成菜单失败。"
       });
     } finally {
       operationInProgress = false;
       this.setData({ busy: false });
+      await this.flushPendingRefresh();
     }
   }
 });

@@ -19,6 +19,7 @@
   margin-top: 10rpx;
   color: #9b99aa;
   font-size: 23rpx;
+  line-height: 1.55;
 }
 
 .shopping-item {
@@ -32,6 +33,7 @@
 
 .shopping-content {
   flex: 1;
+  min-width: 0;
   margin-left: 20rpx;
 }
 
@@ -40,6 +42,13 @@
   justify-content: space-between;
   color: #ffffff;
   font-size: 29rpx;
+  line-height: 1.45;
+}
+
+.shopping-name {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
 }
 
 .grams {

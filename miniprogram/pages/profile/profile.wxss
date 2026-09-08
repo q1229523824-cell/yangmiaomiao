@@ -1,3 +1,7 @@
+.profile-page {
+  padding-bottom: 260rpx;
+}
+
 .header-block {
   padding: 30rpx 8rpx 24rpx;
 }
@@ -6,6 +10,8 @@
 .subtitle,
 .member-title,
 .member-subtitle,
+.setup-note__title,
+.save-hint,
 .field-error,
 .picker-label,
 .picker-control__value,
@@ -35,6 +41,20 @@
   border-radius: 20rpx;
   font-size: 24rpx;
   line-height: 1.55;
+}
+
+.setup-note {
+  color: #c8c5d8;
+  border-color: rgba(255, 210, 0, 0.23);
+  background: rgba(255, 210, 0, 0.06);
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.setup-note__title {
+  margin-bottom: 8rpx;
+  color: #ffe28a;
+  font-weight: 700;
 }
 
 .status-card--error {
@@ -119,7 +139,8 @@
 
 .field__control {
   flex: 1;
-  height: 76rpx;
+  min-width: 0;
+  height: 88rpx;
   padding: 0 20rpx;
   color: #ffffff;
   font-size: 27rpx;
@@ -129,13 +150,15 @@
   display: flex;
   flex: 1;
   align-items: center;
-  height: 76rpx;
+  min-width: 0;
+  height: 88rpx;
   padding: 0 18rpx 0 20rpx;
 }
 
 .number-control__input {
   flex: 1;
-  height: 74rpx;
+  min-width: 0;
+  height: 86rpx;
   color: #ffffff;
   font-size: 27rpx;
 }
@@ -156,6 +179,7 @@
   margin: 8rpx 0 0 132rpx;
   color: #ffaaaa;
   font-size: 22rpx;
+  line-height: 1.5;
 }
 
 .field-block--picker {
@@ -177,6 +201,7 @@
 
 .picker-control__content {
   flex: 1;
+  min-width: 0;
 }
 
 .picker-control__value {
@@ -200,14 +225,25 @@
 }
 
 .save-panel {
-  margin: 8rpx 0 26rpx;
+  position: fixed;
+  z-index: 10;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 18rpx 24rpx 22rpx;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.12);
+  background: #211d43;
+  box-shadow: 0 -8rpx 28rpx rgba(0, 0, 0, 0.18);
 }
 
 .save-button {
+  min-height: 88rpx;
   color: #1a1a2e;
   border-radius: 999rpx;
   background: linear-gradient(135deg, #f7971e, #ffd200);
   font-weight: 700;
+  font-size: 29rpx;
+  line-height: 88rpx;
 }
 
 .save-button--disabled {
@@ -216,10 +252,17 @@
 }
 
 .unsaved-message,
-.saved-message {
-  margin: 0 0 14rpx;
+.saved-message,
+.save-hint {
+  margin: 0 0 10rpx;
   font-size: 24rpx;
+  line-height: 1.5;
   text-align: center;
+}
+
+.save-hint {
+  color: #b9b5cf;
+  font-size: 22rpx;
 }
 
 .unsaved-message {
@@ -227,7 +270,7 @@
 }
 
 .saved-message {
-  margin-top: 16rpx;
+  margin: 12rpx 0 0;
   color: #8ee7df;
   line-height: 1.5;
 }

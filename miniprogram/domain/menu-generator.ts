@@ -29,6 +29,8 @@ import {
 import { validateDailyPlan } from "./plan-validator";
 
 export const CATALOG_VERSION = 2;
+/** Bound offline work even when no combination can meet the portion limits. */
+export const MAX_PLAN_GENERATION_ATTEMPTS = 64;
 
 export type MenuGenerationErrorCode =
   | "NO_MEMBERS"
@@ -48,6 +50,9 @@ export class MenuGenerationError extends Error {
     this.name = "MenuGenerationError";
   }
 }
+
+/** Only a candidate's portion/energy mismatch is eligible for another draw. */
+class UnsupportedCombinationError extends Error {}
 
 export interface GenerateDailyPlanInput {
   date: string;
@@ -581,8 +586,7 @@ function assertPlanWithinSupportedPortions(plan: DailyPlan): void {
               ? MAX_DRY_CARBOHYDRATE_PORTION_G
               : MAX_OTHER_PORTION_G;
         if (grams > maximumGrams) {
-          throw new MenuGenerationError(
-            "UNSUPPORTED_GOAL",
+          throw new UnsupportedCombinationError(
             `${profile.name}的当前目标会让${meal.name}中的${food.name}达到 ${grams}g，超出本应用支持的日常单份范围。请核对档案和目标设置；特殊饮食需求请咨询医生或注册营养师。`
           );
         }
@@ -596,22 +600,19 @@ function assertPlanWithinSupportedPortions(plan: DailyPlan): void {
       goals.caloriesKcal * MAX_CALORIE_DEVIATION_RATIO
     );
     if (Math.abs(actual.caloriesKcal - goals.caloriesKcal) > allowedDeviation) {
-      throw new MenuGenerationError(
-        "UNSUPPORTED_GOAL",
+      throw new UnsupportedCombinationError(
         `${profile.name}的档案目标约为 ${goals.caloriesKcal} kcal，但当前本地食材模板只能组合到约 ${actual.caloriesKcal} kcal，差距过大，已停止生成以避免给出误导性菜单。请核对档案和目标设置；特殊饮食需求请咨询医生或注册营养师。`
       );
     }
   }
 }
 
-export function generateDailyPlan(input: GenerateDailyPlanInput): DailyPlan {
-  if (input.profiles.length === 0) {
-    throw new MenuGenerationError("NO_MEMBERS", "至少需要一位家庭成员。 ");
-  }
-  validateProfiles(input.profiles);
-  const goalsByMemberId = calculateSupportedGoals(input.profiles);
-  const random = createSeededRandom(input.seed);
-  const recipePool = chooseRecipePool(input.preferences);
+function generateCandidate(
+  input: GenerateDailyPlanInput,
+  goalsByMemberId: Record<MemberId, Goals>,
+  recipePool: readonly Recipe[],
+  random: () => number
+): DailyPlan {
   const breakfast = chooseBreakfast(input.preferences, random);
   const lunchRecipe = pickOne(recipePool, random);
 
@@ -668,7 +669,6 @@ export function generateDailyPlan(input: GenerateDailyPlanInput): DailyPlan {
     preferencesSnapshot: snapshotPreferences(input.preferences),
     createdAt: input.createdAt ?? new Date().toISOString()
   };
-  assertPlanWithinSupportedPortions(plan);
   const validation = validateDailyPlan(plan);
   if (!validation.valid) {
     throw new MenuGenerationError(
@@ -676,5 +676,37 @@ export function generateDailyPlan(input: GenerateDailyPlanInput): DailyPlan {
       `菜单生成校验失败：${validation.errors.join("；")}`
     );
   }
+  // Structural and hard-preference errors must stop immediately, including
+  // non-finite quantities; only an otherwise valid candidate can be retried.
+  assertPlanWithinSupportedPortions(plan);
   return plan;
+}
+
+export function generateDailyPlan(input: GenerateDailyPlanInput): DailyPlan {
+  if (input.profiles.length === 0) {
+    throw new MenuGenerationError("NO_MEMBERS", "至少需要一位家庭成员。 ");
+  }
+  validateProfiles(input.profiles);
+  const goalsByMemberId = calculateSupportedGoals(input.profiles);
+  const recipePool = chooseRecipePool(input.preferences);
+  const random = createSeededRandom(input.seed);
+  const stableInput = {
+    ...input,
+    createdAt: input.createdAt ?? new Date().toISOString()
+  };
+  let lastMismatch: UnsupportedCombinationError | undefined;
+  for (let attempt = 0; attempt < MAX_PLAN_GENERATION_ATTEMPTS; attempt += 1) {
+    try {
+      // Continue the same deterministic random stream; do not increment the
+      // public seed. A fallback must not steal another user action's plan ID.
+      return generateCandidate(stableInput, goalsByMemberId, recipePool, random);
+    } catch (error) {
+      if (!(error instanceof UnsupportedCombinationError)) throw error;
+      lastMismatch = error;
+    }
+  }
+  throw new MenuGenerationError(
+    "UNSUPPORTED_GOAL",
+    `已尝试 ${MAX_PLAN_GENERATION_ATTEMPTS} 个食材组合，仍未找到符合当前目标和份量上限的菜单，原有菜单不会被替换。最近一次组合：${lastMismatch?.message}`
+  );
 }

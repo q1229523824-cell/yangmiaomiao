@@ -16,6 +16,7 @@ export interface MiniProgramRuntime {
     showModal: ReturnType<typeof vi.fn>;
     showToast: ReturnType<typeof vi.fn>;
     switchTab: ReturnType<typeof vi.fn>;
+    pageScrollTo: ReturnType<typeof vi.fn>;
   };
   createPage<T extends RuntimePage>(): T;
   resetPageRegistration(): void;
@@ -104,6 +105,7 @@ export function installMiniProgramRuntime(): MiniProgramRuntime {
     })),
     showToast: vi.fn(async () => ({ errMsg: "showToast:ok" })),
     switchTab: vi.fn(async () => ({ errMsg: "switchTab:ok" })),
+    pageScrollTo: vi.fn(async () => ({ errMsg: "pageScrollTo:ok" })),
   };
 
   Object.defineProperty(globalThis, "wx", {

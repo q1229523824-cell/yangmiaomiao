@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_PROFILES, FOOD_BY_ID } from "../miniprogram/data/catalog";
+import { generateDailyPlan } from "../miniprogram/domain/menu-generator";
 
 import {
   createEmptyPreferences,
@@ -289,6 +291,111 @@ describe("parsePreferences", () => {
       expect(result.unrecognized).toEqual([]);
     },
   );
+
+  it.each([
+    ["海鲜不过敏鱼过敏", ["fish"]],
+    ["海鲜不过敏虾过敏", ["shellfish"]],
+    ["海鲜过敏鱼不过敏", ["shellfish"]],
+    ["海鲜过敏虾不过敏", ["fish"]],
+  ] as const)(
+    "宽泛海鲜声明与具体纠正按文本顺序处理：%s",
+    (input, expected) => {
+      const result = parsePreferences(input, createEmptyPreferences());
+
+      expect(result.preferences.allergens).toEqual(expected);
+      expect(result.changed).toBe(true);
+      expect(result.unrecognized).toEqual([]);
+    },
+  );
+
+  it("同一句里重复声明时以后一次纠正为准", () => {
+    const result = parsePreferences(
+      "鱼过敏鱼不过敏虾过敏",
+      createEmptyPreferences(),
+    );
+
+    expect(result.preferences.allergens).toEqual(["shellfish"]);
+    expect(result.unrecognized).toEqual([]);
+  });
+
+  it.each([
+    "不要取消牛奶过敏",
+    "不取消牛奶过敏",
+    "没有取消牛奶过敏",
+    "别删除牛奶过敏记录",
+    "不需要解除对牛奶过敏",
+    "不要帮我移除牛奶过敏",
+    "暂不取消牛奶和鸡蛋过敏",
+    "不要取消牛奶和鸡蛋不过敏",
+  ])("被否定的过敏纠正不会解除或新增其他排除：%s", (input) => {
+    const current = createEmptyPreferences();
+    current.allergens = ["milk", "egg", "soy"];
+    const result = parsePreferences(input, current);
+
+    expect(result.preferences).toEqual(current);
+    expect(result.changed).toBe(false);
+    expect(result.changes).toEqual([]);
+    expect(result.reply).toContain("现有记录保持不变");
+    expect(result.unrecognized).toEqual([]);
+  });
+
+  it("否定取消命令保留已有记录，但不凭空创建没有的过敏记录", () => {
+    const result = parsePreferences("不要取消牛奶过敏", createEmptyPreferences());
+    expect(result.preferences).toEqual(createEmptyPreferences());
+    expect(result.changed).toBe(false);
+  });
+
+  it.each([
+    ["我想吃番茄现在不想吃番茄", false],
+    ["想吃番茄番茄不要", false],
+    ["想吃番茄现在不要西红柿", false],
+    ["想吃西红柿现在不要番茄", false],
+    ["不要番茄现在想吃番茄", true],
+    ["不要番茄现在想吃西红柿", true],
+    ["不要西红柿现在想吃番茄", true],
+  ])("重复番茄及别名按最后一次明确意图处理：%s", (input, prefer) => {
+    const result = parsePreferences(input, createEmptyPreferences());
+    expect(result.preferences.excludedFoodIds.includes("tomato")).toBe(!prefer);
+    expect(result.preferences.preferredFoodIds.includes("tomato")).toBe(prefer);
+    expect(result.preferences.preferredFlavors.includes("tomato")).toBe(prefer);
+    expect(result.unrecognized).toEqual([]);
+    if (!prefer) {
+      for (let seed = 0; seed < 16; seed += 1) {
+        const plan = generateDailyPlan({
+          date: "2026-09-08",
+          profiles: DEFAULT_PROFILES,
+          preferences: result.preferences,
+          seed,
+        });
+        expect(plan.meals.flatMap((meal) => meal.items).some((item) =>
+          item.foodId === "tomato"
+        )).toBe(false);
+      }
+    }
+  });
+
+  it("重复长别名只保留完整食材匹配，不拆成更宽泛鱼类", () => {
+    const result = parsePreferences("想吃三文鱼现在不要三文鱼", createEmptyPreferences());
+    expect(result.preferences.excludedFoodIds).toEqual(["salmon"]);
+    expect(result.preferences.preferredFoodIds).toEqual([]);
+    expect(result.preferences.excludedFoodGroups).toEqual([]);
+  });
+
+  it("普通喜好不能绕过被否定取消后保留的牛奶过敏记录", () => {
+    const current = createEmptyPreferences();
+    current.allergens = ["milk"];
+    const result = parsePreferences("不要取消牛奶过敏，但想喝牛奶", current);
+    expect(result.preferences.allergens).toEqual(["milk"]);
+    const plan = generateDailyPlan({
+      date: "2026-09-08",
+      profiles: DEFAULT_PROFILES,
+      preferences: result.preferences,
+      seed: 42,
+    });
+    expect(plan.meals.flatMap((meal) => meal.items).some((item) =>
+      FOOD_BY_ID[item.foodId].allergens?.includes("milk")
+    )).toBe(false);
+  });
 
   it("相邻过敏原列表共享末尾的添加声明", () => {
     const result = parsePreferences(

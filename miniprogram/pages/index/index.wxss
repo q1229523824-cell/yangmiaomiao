@@ -22,6 +22,30 @@
   margin-top: 12rpx;
   color: #aaa8b8;
   font-size: 25rpx;
+  line-height: 1.5;
+}
+
+.setup-hint {
+  margin-bottom: 24rpx;
+  padding: 18rpx 22rpx;
+  border: 1rpx solid rgba(255, 210, 0, 0.2);
+  border-radius: 20rpx;
+  background: rgba(255, 210, 0, 0.06);
+  color: #d5d0be;
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.profile-link {
+  min-height: 76rpx;
+  margin: 10rpx 0 0;
+  padding: 0 16rpx;
+  border-radius: 14rpx;
+  color: #ffdc66;
+  background: rgba(255, 210, 0, 0.1);
+  font-size: 25rpx;
+  font-weight: 700;
+  line-height: 76rpx;
 }
 
 .toolbar,
@@ -33,11 +57,13 @@
 }
 
 .toolbar {
+  flex-wrap: wrap;
   justify-content: space-between;
   margin-bottom: 24rpx;
 }
 
 .date {
+  margin: 12rpx 18rpx 12rpx 0;
   color: #d8d7df;
   font-size: 27rpx;
 }
@@ -51,11 +77,11 @@
 }
 
 .primary-button {
-  min-height: 72rpx;
+  min-height: 88rpx;
   padding: 0 28rpx;
   border-radius: 999rpx;
   font-size: 27rpx;
-  line-height: 72rpx;
+  line-height: 88rpx;
 }
 
 .loading-card {
@@ -111,6 +137,8 @@
   color: #ffffff;
   font-size: 30rpx;
   font-weight: 700;
+  line-height: 1.45;
+  word-break: break-all;
 }
 
 .stats-grid {
@@ -178,7 +206,7 @@
 .chip {
   display: inline-flex;
   align-items: center;
-  min-height: 64rpx;
+  min-height: 76rpx;
   margin: 0 10rpx 10rpx 0;
   padding: 10rpx 18rpx;
   color: #e4e3eb;
@@ -192,7 +220,8 @@
 
 .preference-input {
   flex: 1;
-  height: 76rpx;
+  min-width: 0;
+  height: 88rpx;
   padding: 0 20rpx;
   border: 1rpx solid rgba(255, 255, 255, 0.14);
   border-radius: 18rpx;
@@ -203,15 +232,22 @@
 
 .send-button {
   width: 126rpx;
+  flex-shrink: 0;
   margin-left: 12rpx;
   border-radius: 18rpx;
   font-size: 25rpx;
-  line-height: 76rpx;
+  line-height: 88rpx;
 }
 
 .preference-tag {
-  display: inline-block;
-  min-height: 58rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 76rpx;
+  box-sizing: border-box;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-all;
   color: #ffe9a5;
   background: rgba(255, 210, 0, 0.13);
   border: 0;
@@ -246,13 +282,13 @@
 }
 
 .clear-preferences {
-  min-height: 64rpx;
+  min-height: 76rpx;
   margin: 4rpx 0 0;
   color: #aaa8b8;
   border: 1rpx solid rgba(255, 255, 255, 0.12);
   background: transparent;
   font-size: 22rpx;
-  line-height: 64rpx;
+  line-height: 76rpx;
 }
 
 .meal-heading {
@@ -266,12 +302,22 @@
   color: #ffd200;
   font-size: 29rpx;
   font-weight: 700;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.meal-heading__content {
+  flex: 1;
+  min-width: 0;
 }
 
 .meal-method {
-  max-width: 220rpx;
+  flex-shrink: 0;
+  max-width: 170rpx;
+  margin-left: 16rpx;
   color: #aaa8b8;
   font-size: 22rpx;
+  line-height: 1.5;
   text-align: right;
 }
 
@@ -279,6 +325,7 @@
   padding: 15rpx 0;
   border-top: 1rpx dashed rgba(255, 255, 255, 0.08);
   font-size: 25rpx;
+  line-height: 1.5;
 }
 
 .ingredient-row--header {
@@ -289,10 +336,15 @@
 
 .ingredient-name {
   flex: 1.35;
+  min-width: 0;
+  word-break: break-all;
 }
 
 .portion {
   flex: 0.75;
+  min-width: 0;
+  padding-left: 10rpx;
+  word-break: break-all;
   color: #8ee7df;
   font-weight: 700;
   text-align: right;
@@ -315,4 +367,10 @@
   font-size: 22rpx;
   line-height: 1.6;
   text-align: center;
+}
+
+.offline-note {
+  display: block;
+  margin-top: 16rpx;
+  color: #aaa8b8;
 }

@@ -85,6 +85,11 @@
   justify-content: space-between;
 }
 
+.card-heading > view {
+  flex: 1;
+  min-width: 0;
+}
+
 .date {
   color: #ffffff;
   font-size: 30rpx;
@@ -99,6 +104,7 @@
 
 .current-badge {
   flex-shrink: 0;
+  margin-left: 14rpx;
   padding: 7rpx 14rpx;
   color: #1a1a2e;
   border-radius: 999rpx;
@@ -129,6 +135,8 @@
 
 .meal-name {
   flex: 1;
+  min-width: 0;
+  word-break: break-all;
   color: #f1f0f5;
 }
 
@@ -148,6 +156,8 @@
   border-radius: 16rpx;
   background: rgba(255, 255, 255, 0.055);
   font-size: 22rpx;
+  line-height: 1.5;
+  word-break: break-all;
 }
 
 .calorie-value {
@@ -159,13 +169,13 @@
 
 .restore-button {
   margin-top: 22rpx;
-  min-height: 76rpx;
+  min-height: 88rpx;
   color: #1a1a2e;
   border-radius: 999rpx;
   background: linear-gradient(135deg, #f7971e, #ffd200);
   font-size: 25rpx;
   font-weight: 700;
-  line-height: 76rpx;
+  line-height: 88rpx;
 }
 
 .restore-button--current {

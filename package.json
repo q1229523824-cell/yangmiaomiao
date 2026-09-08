@@ -9,6 +9,7 @@
     "test:watch": "vitest",
     "preview:plan": "vite-node scripts/preview-plan.ts",
     "verify:wechat": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-wechat-compiler.ps1",
+    "verify:simulator": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-simulator.ps1",
     "verify:all": "npm run verify && npm run verify:wechat",
     "verify": "npm run typecheck && npm test"
   },

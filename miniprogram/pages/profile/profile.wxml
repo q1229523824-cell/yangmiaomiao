@@ -1,4 +1,4 @@
-<view class="page">
+<view class="page profile-page">
   <view class="header-block">
     <text class="title">👩👨 双人档案</text>
     <text class="subtitle">身高、体重和目标都可以修改。数据只保存在当前设备的微信中。</text>
@@ -15,7 +15,11 @@
   <view class="card loading-card" wx:if="{{loading}}">正在读取本地档案…</view>
 
   <block wx:if="{{!loading && !loadFailed}}">
-    <view class="card member-card" wx:for="{{drafts}}" wx:key="id" wx:for-item="profile" wx:for-index="profileIndex">
+    <view class="card setup-note">
+      <text class="setup-note__title">先核对两个人的实际数据</text>
+      <text>首次预填的称呼、身高和体重只是示例。修改后请点底部“保存档案”；已有菜单会保留，回到“今日”可按新设置重算。</text>
+    </view>
+    <view id="profile-member-{{profileIndex}}" class="card member-card" wx:for="{{drafts}}" wx:key="id" wx:for-item="profile" wx:for-index="profileIndex">
       <view class="member-heading">
         <text class="member-title">{{profile.emoji}} 第 {{profileIndex + 1}} 位成员</text>
         <text class="member-subtitle">每个人的档案和目标独立计算</text>
@@ -31,6 +35,9 @@
             data-field="name"
             bindinput="onDraftInput"
             disabled="{{busy}}"
+            confirm-type="done"
+            cursor-spacing="140"
+            adjust-position="{{true}}"
             maxlength="12"
             placeholder="如：喵喵"
           />
@@ -50,6 +57,9 @@
               data-field="heightCm"
               bindinput="onDraftInput"
               disabled="{{busy}}"
+              confirm-type="done"
+              cursor-spacing="140"
+              adjust-position="{{true}}"
               maxlength="6"
               placeholder="100–230"
             />
@@ -71,6 +81,9 @@
               data-field="weightKg"
               bindinput="onDraftInput"
               disabled="{{busy}}"
+              confirm-type="done"
+              cursor-spacing="140"
+              adjust-position="{{true}}"
               maxlength="6"
               placeholder="30–300"
             />
@@ -92,6 +105,9 @@
               data-field="ageYears"
               bindinput="onDraftInput"
               disabled="{{busy}}"
+              confirm-type="done"
+              cursor-spacing="140"
+              adjust-position="{{true}}"
               maxlength="3"
               placeholder="16–100"
             />
@@ -146,12 +162,13 @@
 
     <view class="save-panel">
       <text class="unsaved-message" wx:if="{{hasUnsavedChanges}}">有修改尚未保存</text>
+      <text class="save-hint" wx:elif="{{!savedMessage}}">修改完成后，在这里保存两人的档案</text>
       <button
         class="save-button {{saveDisabled ? 'save-button--disabled' : ''}}"
         bindtap="onSave"
         loading="{{busy}}"
         disabled="{{saveDisabled}}"
-      >保存档案</button>
+      >{{busy ? '正在处理…' : '保存档案'}}</button>
       <text class="saved-message" wx:if="{{savedMessage}}">{{savedMessage}}</text>
     </view>
 

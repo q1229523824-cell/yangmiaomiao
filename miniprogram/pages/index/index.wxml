@@ -6,6 +6,11 @@
 
   <view class="card loading-card" wx:if="{{loading}}">正在读取本地菜单…</view>
 
+  <view class="setup-hint" wx:if="{{!loading && dateText}}">
+    <text>首次使用？预填档案只是示例，请先核对两人的身高和体重。</text>
+    <button class="profile-link" bindtap="onGoProfile" disabled="{{busy}}">填写两人档案 ›</button>
+  </view>
+
   <view class="toolbar" wx:if="{{!loading && dateText}}">
     <text class="date">📅 {{dateText}}</text>
     <button class="primary-button" bindtap="onGenerateTap" loading="{{busy}}" disabled="{{busy}}">{{generateButtonText}}</button>
@@ -47,7 +52,7 @@
       <button class="chip" size="mini" data-text="空气炸锅优先" bindtap="onQuickPreference" disabled="{{busy}}">空气炸锅</button>
     </view>
     <view class="input-row">
-      <input class="preference-input" value="{{preferenceInput}}" bindinput="onPreferenceInput" confirm-type="send" bindconfirm="onPreferenceSubmit" disabled="{{busy}}" maxlength="80" cursor-spacing="18" placeholder="如：不要鱼，想吃猪里脊" />
+      <input class="preference-input" value="{{preferenceInput}}" bindinput="onPreferenceInput" confirm-type="send" bindconfirm="onPreferenceSubmit" disabled="{{busy}}" maxlength="80" cursor-spacing="32" placeholder="如：不要鱼，想吃猪里脊" />
       <button class="send-button" bindtap="onPreferenceSubmit" loading="{{busy}}" disabled="{{busy || !preferenceInput}}">发送</button>
     </view>
     <view class="preference-tags" wx:if="{{preferenceTags.length}}">
@@ -62,7 +67,7 @@
 
   <view class="card meal-card" wx:for="{{meals}}" wx:key="id" wx:for-item="meal">
     <view class="meal-heading">
-      <view>
+      <view class="meal-heading__content">
         <text class="section-title">{{meal.heading}}</text>
         <text class="meal-name">{{meal.name}}</text>
       </view>
@@ -83,5 +88,8 @@
     <view class="tip" wx:if="{{meal.sauce}}">{{meal.sauce}}</view>
   </view>
 
-  <view class="footer-note" wx:if="{{!loading && dateText}}">营养值按常见食材近似估算，仅供日常健身饮食参考。当前含 {{ingredientCount}} 种本地食材，断网也能生成菜单。</view>
+  <view class="footer-note" wx:if="{{!loading && dateText}}">
+    <text>营养值按常见食材近似估算，仅供日常健身饮食参考。当前含 {{ingredientCount}} 种本地食材。</text>
+    <text class="offline-note">首次进入和版本更新需要联网。加载完成后，菜单、档案、购物清单和历史可离线使用；数据留在本机，两台手机不会自动同步。</text>
+  </view>
 </view>

@@ -78,6 +78,9 @@ export function preparePreferencePlanChange(
     };
   } catch (error) {
     if (!(error instanceof MenuGenerationError)) throw error;
+    // An invalid generated structure is a programming/catalog error, not a
+    // preference conflict the user can resolve by removing an exclusion.
+    if (error.code === "INVALID_PLAN") throw error;
     return {
       state: pendingState,
       generated: false,

@@ -16,6 +16,8 @@ import {
 
 const HIDDEN_SAUCE_MESSAGE =
   "已按过敏原过滤记录隐藏调味建议，请自行核对配料表和交叉污染";
+const HIDDEN_TIP_MESSAGE =
+  "已按过敏原过滤记录隐藏原烹饪提示，请仅使用已核对配料的调味品，并留意交叉污染";
 
 function planWithAllergens(allergens: Allergen[] = []) {
   return generateDailyPlan({
@@ -109,6 +111,7 @@ describe("toMealViewModels allergen messaging", () => {
 
   it("uses the current allergen record for an older snapshot", () => {
     const oldPlan = planWithAllergens();
+    oldPlan.meals[0].tip = "旧版本提示：出锅拌一点生抽和蒜蓉";
     const viewModels = toMealViewModels(oldPlan, ["soy"]);
     const visibleText = viewModels
       .flatMap((meal) => [meal.tip, meal.sauce])
@@ -116,6 +119,9 @@ describe("toMealViewModels allergen messaging", () => {
 
     expect(viewModels.some((meal) => meal.sauce === HIDDEN_SAUCE_MESSAGE)).toBe(
       true,
+    );
+    expect(new Set(viewModels.map((meal) => meal.tip))).toEqual(
+      new Set([HIDDEN_TIP_MESSAGE]),
     );
     expect(visibleText).not.toMatch(/生抽|蚝油/);
   });

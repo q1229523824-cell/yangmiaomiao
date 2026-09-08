@@ -2,6 +2,7 @@ node_modules/
 miniprogram_npm/
 coverage/
 dist/
+artifacts/
 .DS_Store
 project.private.config.json
 .env

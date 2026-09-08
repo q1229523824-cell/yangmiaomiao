@@ -9,6 +9,12 @@ button::after {
   border: none;
 }
 
+.page button[disabled] {
+  color: #b4b0c7;
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: none;
+}
+
 .page {
   min-height: 100vh;
   padding: 24rpx 24rpx 40rpx;
