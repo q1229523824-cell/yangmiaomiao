@@ -7,6 +7,7 @@ import { buildShoppingList } from "../miniprogram/domain/shopping-list";
 import { validateDailyPlan, validatePlanAgainstPreferences } from "../miniprogram/domain/plan-validator";
 import { createDefaultAppState, type AppState } from "../miniprogram/repositories/app-state";
 import { CURRENT_SCHEMA_VERSION, namespacedKey } from "../miniprogram/repositories/storage";
+import { LOCAL_BACKUP_FORMAT } from "../miniprogram/services/local-backup";
 import { ensureInitialPlan } from "../miniprogram/services/plan-service";
 import { WeChatAutomation, until, type SimulatorPage } from "./wechat-automation";
 
@@ -189,6 +190,27 @@ try {
     await until(async () => !(await stored()).planNeedsRefresh, "profile recalculation");
     await mp.ready(today);
     assert.equal((await stored()).currentPlan?.profilesSnapshot[0].weightKg, 62.5);
+  });
+
+  await check("profile local backup copies and restores through the clipboard", async () => {
+    let profile = await mp.route(PROFILE);
+    await mp.tap(profile, "button.backup-button");
+    await mp.ready(profile);
+    const clipboard = await mp.wx("getClipboardData");
+    const backupPayload = JSON.parse(String(clipboard.data ?? "")) as {
+      format?: string;
+      data?: { profiles?: unknown };
+    };
+    assert.equal(backupPayload.format, LOCAL_BACKUP_FORMAT);
+    assert.ok(Array.isArray(backupPayload.data?.profiles));
+
+    await mp.modal(true);
+    mocked.add("showModal");
+    profile = await ensureCurrentPage(PROFILE, profile);
+    await mp.tap(profile, "button.backup-button--secondary");
+    await mp.ready(profile);
+    assert.equal((await mp.data(profile)).loadFailed, false);
+    assert.equal((await stored()).profiles.length, backupPayload.data?.profiles?.length);
   });
 
   await check("shopping totals match the snapshot and checkbox persists", async () => {

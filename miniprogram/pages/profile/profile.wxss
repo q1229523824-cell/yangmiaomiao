@@ -92,6 +92,62 @@
   text-align: center;
 }
 
+.backup-card {
+  margin-bottom: 24rpx;
+  border-color: rgba(142, 231, 223, 0.2);
+  background: rgba(142, 231, 223, 0.06);
+}
+
+.backup-card__title,
+.backup-card__text,
+.backup-card__warning {
+  display: block;
+}
+
+.backup-card__title {
+  color: #a9f1eb;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.backup-card__text {
+  margin-top: 10rpx;
+  color: #c2c0d0;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
+.backup-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 18rpx;
+}
+
+.backup-button {
+  flex: 1;
+  min-width: 0;
+  min-height: 72rpx;
+  padding: 0 12rpx;
+  color: #1a1a2e;
+  border-radius: 999rpx;
+  background: #8ee7df;
+  font-size: 23rpx;
+  line-height: 72rpx;
+}
+
+.backup-button--secondary {
+  color: #a9f1eb;
+  border: 1rpx solid rgba(142, 231, 223, 0.5);
+  background: transparent;
+}
+
+.backup-card__warning {
+  margin-top: 14rpx;
+  color: #e3c987;
+  font-size: 21rpx;
+  line-height: 1.5;
+}
+
 .member-card {
   padding-bottom: 32rpx;
 }

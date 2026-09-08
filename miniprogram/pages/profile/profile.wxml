@@ -14,6 +14,16 @@
   </view>
   <view class="card loading-card" wx:if="{{loading}}">正在读取本地档案…</view>
 
+  <view class="card backup-card" wx:if="{{!loading}}">
+    <text class="backup-card__title">📦 离线备份（可选）</text>
+    <text class="backup-card__text">把最近一次已保存的档案、偏好、菜单历史和购物勾选复制成一段本地文本。换手机时手动复制到新设备，再从剪贴板恢复；内容不会上传服务器。</text>
+    <view class="backup-actions">
+      <button class="backup-button" bindtap="onExportBackup" disabled="{{busy}}">复制本地备份</button>
+      <button class="backup-button backup-button--secondary" bindtap="onImportBackup" disabled="{{busy}}">从剪贴板恢复</button>
+    </view>
+    <text class="backup-card__warning">备份文本包含身高、体重和饮食记录，请勿粘贴到公开或不信任的地方。</text>
+  </view>
+
   <block wx:if="{{!loading && !loadFailed}}">
     <view class="card setup-note">
       <text class="setup-note__title">先核对两个人的实际数据</text>

@@ -15,6 +15,8 @@ export interface MiniProgramRuntime {
     getStorageInfo: ReturnType<typeof vi.fn>;
     showModal: ReturnType<typeof vi.fn>;
     showToast: ReturnType<typeof vi.fn>;
+    getClipboardData: ReturnType<typeof vi.fn>;
+    setClipboardData: ReturnType<typeof vi.fn>;
     switchTab: ReturnType<typeof vi.fn>;
     pageScrollTo: ReturnType<typeof vi.fn>;
   };
@@ -68,6 +70,7 @@ function restoreGlobalProperty(
 export function installMiniProgramRuntime(): MiniProgramRuntime {
   const storage = new Map<string, unknown>();
   let capturedPage: unknown;
+  let clipboard = "";
   let cleanedUp = false;
   const previousWxDescriptor = Object.getOwnPropertyDescriptor(globalThis, "wx");
   const previousPageDescriptor = Object.getOwnPropertyDescriptor(
@@ -104,6 +107,11 @@ export function installMiniProgramRuntime(): MiniProgramRuntime {
       errMsg: "showModal:ok",
     })),
     showToast: vi.fn(async () => ({ errMsg: "showToast:ok" })),
+    getClipboardData: vi.fn(async () => ({ data: clipboard, errMsg: "getClipboardData:ok" })),
+    setClipboardData: vi.fn(async ({ data }: { data: string }) => {
+      clipboard = data;
+      return { errMsg: "setClipboardData:ok" };
+    }),
     switchTab: vi.fn(async () => ({ errMsg: "switchTab:ok" })),
     pageScrollTo: vi.fn(async () => ({ errMsg: "pageScrollTo:ok" })),
   };

@@ -15,6 +15,11 @@ import {
   withTargetOption,
   type ProfileDraft
 } from "./profile-form";
+import {
+  LocalBackupError,
+  parseLocalBackup,
+  serializeLocalBackup,
+} from "../../services/local-backup";
 
 type DraftTextField = "name" | "heightCm" | "weightKg" | "ageYears";
 
@@ -145,6 +150,96 @@ Page({
 
   onRetryLoad() {
     void this.loadProfiles();
+  },
+
+  /**
+   * Copy only the latest committed state. This is deliberately user-initiated
+   * and uses the clipboard instead of a server, so the first version remains
+   * usable without cloud services or a network connection.
+   */
+  async onExportBackup() {
+    if (operationBusy) return;
+    operationBusy = true;
+    this.setData({ busy: true, pageError: "" });
+    try {
+      if (this.data.hasUnsavedChanges) {
+        const confirmation = await wx.showModal({
+          title: "还有未保存修改",
+          content: "备份只包含最近一次已保存的数据。要继续复制吗？",
+          confirmText: "继续复制",
+          confirmColor: "#d49f00",
+        });
+        if (!confirmation.confirm) return;
+      }
+      const latest = await getAppStateRepository().load();
+      const serialized = serializeLocalBackup(latest);
+      await wx.setClipboardData({ data: serialized });
+      const sizeKb = Math.max(1, Math.ceil(serialized.length / 1024));
+      this.setData({
+        savedMessage: `本地备份已复制（约 ${sizeKb} KB）。请只粘贴到自己信任的位置。`,
+        pageError: "",
+      });
+      wx.showToast({ title: "备份已复制", icon: "success" });
+    } catch (error) {
+      this.setData({
+        pageError:
+          error instanceof LocalBackupError || error instanceof Error
+            ? `复制备份失败：${error.message}`
+            : "复制备份失败，请稍后重试。",
+      });
+    } finally {
+      operationBusy = false;
+      this.setData({ busy: false, saveDisabled: !this.data.hasUnsavedChanges });
+      await this.flushPendingRefresh();
+    }
+  },
+
+  /** Replace this app's local state only after a validated, explicit confirmation. */
+  async onImportBackup() {
+    if (operationBusy) return;
+    operationBusy = true;
+    this.setData({ busy: true, pageError: "" });
+    try {
+      const clipboard = await wx.getClipboardData();
+      const raw = typeof clipboard?.data === "string" ? clipboard.data : "";
+      const imported = parseLocalBackup(raw);
+      const confirmation = await wx.showModal({
+        title: "恢复本地备份？",
+        content:
+          "这会替换本小程序在当前设备保存的档案、偏好、菜单历史和购物勾选。备份不会上传网络。",
+        confirmText: "确认恢复",
+        confirmColor: "#d49f00",
+      });
+      if (!confirmation.confirm) return;
+
+      // `save` is an explicit, queued replacement. Unlike a transaction it
+      // does not first load the current envelope, so a confirmed valid backup
+      // can also recover from a corrupt or future-version local cache.
+      await getAppStateRepository().save(imported);
+      sourceProfiles = cloneProfiles(imported.profiles);
+      drafts = imported.profiles.map(profileToDraft);
+      baselineDrafts = cloneDrafts(drafts);
+      this.setData({
+        drafts,
+        hasUnsavedChanges: false,
+        saveDisabled: true,
+        loadFailed: false,
+        savedMessage: "本地备份已恢复。请到“今日”页检查当前菜单和过敏原提示。",
+        pageError: "",
+      });
+      wx.showToast({ title: "已恢复备份", icon: "success" });
+    } catch (error) {
+      this.setData({
+        pageError:
+          error instanceof LocalBackupError || error instanceof Error
+            ? `恢复备份失败：${error.message}`
+            : "恢复备份失败，请确认剪贴板内容后重试。",
+      });
+    } finally {
+      operationBusy = false;
+      this.setData({ busy: false, saveDisabled: !this.data.hasUnsavedChanges });
+      await this.flushPendingRefresh();
+    }
   },
 
   onDraftInput(event: WechatMiniprogram.Input) {
