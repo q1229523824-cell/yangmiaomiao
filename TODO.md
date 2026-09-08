@@ -38,7 +38,7 @@
 - [x] 逐项检查 `git status` 和暂存 diff，确认没有凭据、个人临时路径或本地私有配置。
 - [x] 将源码默认身高/体重替换为明确虚构、可编辑的演示值，避免公开原型中的真人数据。
 - [x] 将本地分支对齐为 `main`，绑定目标空仓库并使用普通 push 完成首次推送；未使用 force push。
-- [x] GitHub Actions 的 `npm ci` 和 `npm run verify` 已通过（代码提交 run `34100336431`）。
+- [x] GitHub Actions 的 `npm ci` 和 `npm run verify` 已通过（提交 `fb12d39`，run `34185028324`）。
 - [ ] 由项目所有者决定是否添加开源许可证。
 
 ## 暂不属于离线第一版
