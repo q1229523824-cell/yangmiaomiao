@@ -1,5 +1,6 @@
 import { FOOD_BY_ID } from "../data/catalog";
 import type { DailyPlan, Preferences } from "./models";
+import { isDiningChoices } from "./meal-planning";
 
 export interface PlanValidationResult {
   valid: boolean;
@@ -70,6 +71,9 @@ export function validateDailyPlan(plan: DailyPlan): PlanValidationResult {
 
   for (const meal of plan.meals) {
     if (meal.items.length === 0) errors.push(`${meal.name} 没有食材`);
+    if (!isDiningChoices(meal.diningByMemberId, plan.memberIds, meal.type)) {
+      errors.push(`${meal.name} 的用餐安排数据无效`);
+    }
     for (const item of meal.items) {
       if (!FOOD_BY_ID[item.foodId]) errors.push(`未知食材：${item.foodId}`);
       for (const memberId of memberIds) {

@@ -1,4 +1,5 @@
 import { FOOD_BY_ID } from "../data/catalog";
+import { diningChoice, plannedNutrition, nutritionRangeText } from "../domain/meal-planning";
 import type {
   Allergen,
   DailyPlan,
@@ -68,6 +69,7 @@ export interface TodayProfileViewModel {
 
 export interface MealViewModel {
   id: string;
+  type: MealType;
   heading: string;
   name: string;
   method: string;
@@ -91,26 +93,30 @@ export interface PreferenceTagViewModel {
 }
 
 export function toTodayProfileViewModels(
-  plan: DailyPlan
+  plan: DailyPlan,
+  preferences: Preferences = plan.preferencesSnapshot
 ): TodayProfileViewModel[] {
   return plan.profilesSnapshot.map((profile) => {
     const goals = plan.goalsByMemberId[profile.id];
     const actual = plan.nutritionByMemberId[profile.id];
+    const estimate = plannedNutrition(plan, profile.id, preferences);
+    const value = (key: keyof typeof actual) => estimate.hasTakeout
+      ? nutritionRangeText(estimate.min[key], estimate.max[key]) : String(actual[key]);
     return {
       id: profile.id,
       name: profile.name,
       emoji: profile.emoji ?? "👤",
       stats: [
         {
-          label: "热量",
-          value: `${actual.caloriesKcal} / ${goals.caloriesKcal} kcal`
+          label: estimate.pendingMeals ? `已选热量（${estimate.pendingMeals}餐待选）` : "计划热量",
+          value: `${value("caloriesKcal")} / ${goals.caloriesKcal} kcal`
         },
         {
           label: "蛋白质",
-          value: `${actual.proteinG} / ${goals.proteinG} g`
+          value: `${value("proteinG")} / ${goals.proteinG} g`
         },
-        { label: "碳水", value: `${actual.carbsG} g` },
-        { label: "脂肪", value: `${actual.fatG} g` }
+        { label: "碳水", value: `${value("carbsG")} g` },
+        { label: "脂肪", value: `${value("fatG")} g` }
       ]
     };
   });
@@ -140,6 +146,7 @@ export function toMealViewModels(
     const meta = MEAL_LABELS[meal.type];
     return {
       id: meal.id,
+      type: meal.type,
       heading: `${meta.emoji} ${meta.label}`,
       name: meal.name,
       method: meal.cookingMethods.map((method) => METHOD_LABELS[method] ?? method).join(" / "),
@@ -155,7 +162,7 @@ export function toMealViewModels(
         : "",
       rows: meal.items
         .filter((item) =>
-          plan.memberIds.some((memberId) => (item.portionsByMemberId[memberId] ?? 0) > 0)
+          plan.memberIds.some((memberId) => diningChoice(meal, memberId).source === "home" && (item.portionsByMemberId[memberId] ?? 0) > 0)
         )
         .map((item) => {
           const food = FOOD_BY_ID[item.foodId];
@@ -167,7 +174,7 @@ export function toMealViewModels(
               memberId,
               memberName: profileById[memberId]?.name ?? memberId,
               gramsText:
-                (item.portionsByMemberId[memberId] ?? 0) > 0
+                diningChoice(meal, memberId).source === "home" && (item.portionsByMemberId[memberId] ?? 0) > 0
                   ? `${item.portionsByMemberId[memberId]}g`
                   : "—"
             }))

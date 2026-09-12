@@ -145,8 +145,24 @@ export interface MealItem {
   portionsByMemberId: PortionsByMemberId;
 }
 
+/** Saved ordering instructions and an estimate, not a record of consumption. */
+export interface PlannedTakeout {
+  templateId: string;
+  name: string;
+  orderText: string;
+  searchKeyword: string;
+  portionDescription: string;
+  nutrition: { min: Nutrition; max: Nutrition };
+}
+
+export interface MealDiningChoice {
+  source: "home" | "takeout";
+  /** Kept when switching back to home so the user's selection is recoverable. */
+  takeout?: PlannedTakeout;
+}
+
 /**
- * A meal is common to every member in the plan. Only its item portions differ.
+ * The cooking recipe is shared; portions and dining source are per member.
  */
 export interface Meal {
   id: MealId;
@@ -158,6 +174,8 @@ export interface Meal {
   sauce?: string;
   tip: string;
   items: MealItem[];
+  /** Missing entries mean home cooking. The original recipe remains available. */
+  diningByMemberId?: Record<MemberId, MealDiningChoice>;
 }
 
 export interface Preferences {

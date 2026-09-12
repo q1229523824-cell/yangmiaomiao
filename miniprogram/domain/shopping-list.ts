@@ -4,6 +4,7 @@ import type {
   PortionsByMemberId,
   ShoppingItem
 } from "./models";
+import { diningChoice } from "./meal-planning";
 
 export function buildShoppingList(plan: DailyPlan): ShoppingItem[] {
   const byFoodId = new Map<
@@ -20,6 +21,7 @@ export function buildShoppingList(plan: DailyPlan): ShoppingItem[] {
         ) as Record<MemberId, number>
       };
       for (const memberId of plan.memberIds) {
+        if (diningChoice(meal, memberId).source === "takeout") continue;
         const grams = item.portionsByMemberId[memberId] ?? 0;
         current.portionsByMemberId[memberId] += grams;
         current.totalGrams += grams;

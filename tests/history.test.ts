@@ -96,7 +96,8 @@ describe("restorePlanFromHistory", () => {
       older.preferencesSnapshot.excludedFoodIds,
     );
     expect(restored.profiles).toBe(state.profiles);
-    expect(restored.history).toBe(state.history);
+    expect(restored.history).toEqual([older, latest]);
+    expect(state.history).toEqual([latest, older]);
     expect(restored.generationCounter).toBe(9);
     expect(restored.planNeedsRefresh).toBe(true);
     expect(restored.planRefreshReason).toBe("profile_changed");

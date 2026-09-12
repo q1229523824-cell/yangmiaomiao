@@ -2,12 +2,11 @@ import { TAKEOUT_CATEGORIES } from "../../data/takeout-catalog";
 import {
   getTakeoutRecommendations,
   type TakeoutCategory,
-  type TakeoutMealType,
   type TakeoutRecommendation,
 } from "../../domain/takeout";
 import { preferenceSummary } from "../../presentation/view-models";
 import { getAppStateRepository, type AppState } from "../../repositories/app-state";
-import { removeTakeoutSelection, setTakeoutSelection, toggleTakeoutFavorite } from "../../services/takeout-state";
+import { removeTakeoutSelection, setTakeoutSelection, toggleTakeoutFavorite, type TakeoutMealType } from "../../services/takeout-state";
 
 export interface TakeoutCard {
   id: string; name: string; categoryLabel: string; searchKeyword: string;

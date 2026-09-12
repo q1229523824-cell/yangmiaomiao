@@ -66,7 +66,7 @@ async function check(name: string, action: () => Promise<void>) {
     checks.push({ name, passed: true, durationMs: Date.now() - start });
     console.log(`PASS ${name}`);
   } catch (error) {
-    checks.push({ name, passed: false, durationMs: Date.now() - start, error: String(error) });
+    checks.push({ name, passed: false, durationMs: Date.now() - start, error: error instanceof Error ? error.stack : String(error) });
     throw error;
   }
 }
@@ -128,8 +128,9 @@ try {
     today = await fixture(old);
     assert.equal((await stored()).currentPlan?.id, old.currentPlan?.id);
     assert.match((await mp.data(today)).planNotice, /2020/);
-    assert.equal((await mp.data(today)).generateButtonText, "生成今日菜单");
-    await mp.tap(today, ".toolbar .primary-button");
+    assert.equal((await mp.data(today)).generateButtonText, "换当天自炊菜谱");
+    const currentDate = (await mp.data(today)).today;
+    await mp.tap(today, `.date-option[data-date="${currentDate}"]`);
     await until(async () => (await stored()).generationCounter === 2, "explicit generation");
     await mp.ready(today);
     assert.notEqual((await stored()).currentPlan?.date, "2020-01-01");
@@ -283,7 +284,11 @@ try {
       throw new Error("No history candidate for cancel/restore");
     }
     await mp.tap(history, `button[data-plan-id="${firstBackupTarget.id}"]`);
+    // A no-op cancellation must be observed, not inferred from unchanged storage.
+    // Otherwise a queued tap could receive the *next* confirmation mock.
+    await until(async () => (await mp.evaluate(() => getApp().globalData.testModalCalls)) === 1, "history cancel dialog handled");
     await mp.ready(history);
+    assert.equal((await mp.currentPage()).path, HISTORY);
     assert.deepEqual(await mp.wx("getStorageSync", KEY), before);
     await mp.modal(true);
     history = await ensureCurrentPage(HISTORY, history);
@@ -403,6 +408,7 @@ try {
     const profile = await mp.route(PROFILE);
     await mp.modal(false);
     await mp.tap(profile, ".recovery-clear-button");
+    await until(async () => (await mp.evaluate(() => getApp().globalData.testModalCalls)) === 1, "reset cancellation handled");
     await mp.ready(profile);
     assert.equal((await mp.data(profile)).loadFailed, true);
     assert.match((await mp.data(profile)).pageError, /更高版本/);
@@ -432,12 +438,10 @@ try {
     assert.deepEqual(await mp.evaluate(() => getApp().globalData.testNetworkCalls), []);
     // Fault injection proves application API independence, not phone airplane mode.
   });
-  await check("takeout native entry, details, favorites and meal reference work offline", async () => {
+  await check("legacy takeout route, details, favorites and references remain compatible", async () => {
     today = await fixture();
     const before = await stored();
-    await mp.tap(today, ".takeout-entry__button");
-    await until(async () => (await mp.currentPage()).path === TAKEOUT, "takeout navigation");
-    let takeout = await mp.currentPage(); await mp.ready(takeout);
+    let takeout = await mp.route(TAKEOUT, "reLaunch");
     const data = await mp.data(takeout);
     assert.ok(data.matches.length > 0);
     assert.equal(data.errorMessage, "");
@@ -498,9 +502,84 @@ try {
     await mp.wx("setStorageSync", KEY, {schemaVersion: 2, savedAt: "2026-09-08T00:00:00Z", data: v2});
     const takeout = await mp.route(TAKEOUT, "reLaunch");
     assert.equal((await mp.data(takeout)).errorMessage, "");
-    assert.equal((await mp.wx("getStorageSync", KEY)).schemaVersion, 3);
+    assert.equal((await mp.wx("getStorageSync", KEY)).schemaVersion, CURRENT_SCHEMA_VERSION);
     assert.deepEqual((await stored()).currentPlan, old.currentPlan);
     assert.deepEqual((await stored()).takeout, {favoriteTemplateIds: [], selections: []});
+  });
+  await check("future date picker and breakfast/lunch/dinner choices save inline and survive reload", async () => {
+    today = await fixture();
+    const original = await stored();
+    const date = (await mp.data(today)).dateOptions[2].date;
+    await mp.trigger(today, "#plan-date-picker", "change", {value: date});
+    await until(async () => (await stored()).currentPlan?.date === date, "future date selected");
+    await mp.ready(today);
+    const memberId = (await mp.data(today)).planningMemberId;
+    for (const mealType of ["breakfast", "lunch", "dinner"]) {
+      await mp.tap(today, `.dining-option[data-meal="${mealType}"][data-source="takeout"]`);
+      await until(async () => (await mp.data(today)).meals.find((item: any) => item.type === mealType).source === "takeout", `${mealType} inline options`);
+      await mp.ready(today);
+      const meal = (await mp.data(today)).meals.find((item: any) => item.type === mealType);
+      assert.ok(meal.choices.length);
+      await mp.tap(today, `.choose-takeout-button[data-meal="${mealType}"][data-id="${meal.choices[0].id}"]`);
+      await until(async () => Boolean((await stored()).currentPlan?.meals.find(item => item.type === mealType)?.diningByMemberId?.[memberId].takeout), `${mealType} selected`);
+      await mp.ready(today);
+    }
+    assert.equal((await mp.currentPage()).path, TODAY);
+    await mp.wx("pageScrollTo", {scrollTop: 0, duration: 0});
+    await screenshot("10-planning-dates");
+    await mp.wx("pageScrollTo", {selector: "#meal-lunch", duration: 0});
+    await screenshot("11-inline-lunch");
+    await mp.tap(today, '.copy-order-button[data-meal="lunch"][data-kind="order"]');
+    await until(async () => (await mp.evaluate(() => getApp().globalData.testClipboardText)).includes("鸡腿"), "copy planned lunch");
+    await mp.ready(today);
+    const future = await stored(), envelope = await mp.wx("getStorageSync", KEY);
+    today = await mp.route(TODAY, "reLaunch");
+    assert.deepEqual(await mp.wx("getStorageSync", KEY), envelope);
+    assert.equal((await mp.data(today)).selectedDate, date);
+    await mp.tap(today, `.date-option[data-date="${original.currentPlan!.date}"]`);
+    await until(async () => (await stored()).currentPlan?.date === original.currentPlan!.date, "today restored");
+    assert.deepEqual((await stored()).currentPlan, original.currentPlan);
+    await mp.ready(today);
+    await mp.tap(today, `.date-option[data-date="${date}"]`);
+    await until(async () => (await stored()).currentPlan?.date === date, "future restored");
+    assert.deepEqual((await stored()).currentPlan, future.currentPlan);
+    assert.deepEqual(await mp.evaluate(() => getApp().globalData.testNetworkCalls), []);
+  });
+  await check("mixed source shopping and home restoration follow each member's meal", async () => {
+    await mp.ready(today);
+    const before = await stored(), memberId = before.currentPlan!.memberIds[0], otherId = before.currentPlan!.memberIds[1];
+    await mp.tap(today, `.member-option[data-id="${otherId}"]`);
+    await until(async () => (await mp.data(today)).planningMemberId === otherId, "switch planning member");
+    assert.equal((await mp.data(today)).meals.find((item: any) => item.type === "lunch").source, "home");
+    await mp.tap(today, `.member-option[data-id="${memberId}"]`);
+    await until(async () => (await mp.data(today)).planningMemberId === memberId, "return member");
+    const shopping = await mp.route(SHOPPING);
+    assert.deepEqual((await mp.data(shopping)).items.map((item: any) => item.gramsText), buildShoppingList(before.currentPlan!).map(item => `${item.totalGrams}g`));
+    today = await mp.route(TODAY);
+    await mp.tap(today, '.dining-option[data-meal="lunch"][data-source="home"]');
+    await until(async () => (await mp.data(today)).meals.find((item: any) => item.type === "lunch").source === "home", "lunch returns home");
+    await mp.ready(today);
+    assert.deepEqual((await stored()).currentPlan!.meals.find(item => item.type === "lunch")!.items, before.currentPlan!.meals.find(item => item.type === "lunch")!.items);
+    const newShopping = await mp.route(SHOPPING);
+    assert.notDeepEqual((await mp.data(newShopping)).items.map((item: any) => item.gramsText), buildShoppingList(before.currentPlan!).map(item => `${item.totalGrams}g`));
+    today = await mp.route(TODAY);
+  });
+  await check("changed exclusions hide a previously planned takeout and prevent stale copying", async () => {
+    today = await fixture();
+    await mp.tap(today, '.dining-option[data-meal="lunch"][data-source="takeout"]');
+    await until(async () => (await mp.data(today)).meals[1].source === "takeout", "takeout mode");
+    await mp.ready(today);
+    const id = (await mp.data(today)).meals[1].choices[0].id;
+    await mp.tap(today, `.choose-takeout-button[data-meal="lunch"][data-id="${id}"]`);
+    await until(async () => Boolean((await mp.data(today)).meals[1].selectedTakeout), "choose lunch");
+    await mp.ready(today);
+    await preference(today, "不要番茄");
+    const lunch = (await mp.data(today)).meals[1];
+    assert.equal(lunch.selectedTakeout, null);
+    assert.equal(lunch.pending, true);
+    assert.ok(!lunch.choices.some((item: any) => item.id === id));
+    await mp.wx("pageScrollTo", {selector: "#meal-lunch", duration: 0});
+    await screenshot("12-planning-exclusion");
   });
   assert.equal(mp.exceptions.length, 0, "Unexpected app exception captured");
 } catch (error) {

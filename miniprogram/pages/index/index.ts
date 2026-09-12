@@ -17,9 +17,13 @@ import {
 } from "../../services/plan-service";
 import {
   preferenceSummary,
-  toMealViewModels,
   toTodayProfileViewModels
 } from "../../presentation/view-models";
+import { toPlannedMeals, planningSummary } from "../../presentation/meal-planning-view-models";
+import { selectPlanDate, setMealDining } from "../../services/meal-planning-service";
+import { isPlannableMeal, usableTakeout } from "../../domain/meal-planning";
+import { toggleTakeoutFavorite } from "../../services/takeout-state";
+import { getTakeoutRecommendations } from "../../domain/takeout";
 
 let state: AppState | undefined;
 let operationInProgress = false;
@@ -44,12 +48,22 @@ function dateLabel(date: string): string {
   return `${year}年${Number(month)}月${Number(day)}日`;
 }
 
+function dateOffset(offset: number): string {
+  const now = new Date();
+  now.setDate(now.getDate() + offset);
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 Page({
   data: {
     loading: true,
     dateText: "",
     profiles: [] as ReturnType<typeof toTodayProfileViewModels>,
-    meals: [] as ReturnType<typeof toMealViewModels>,
+    meals: [] as ReturnType<typeof toPlannedMeals>,
+    selectedDate: "", today: "", lastPlanningDate: "", planningMemberId: "",
+    planningMembers: [] as Array<{id: string; name: string; emoji: string}>,
+    dateOptions: [] as Array<{date: string; label: string; saved: boolean}>,
+    planningStatus: "",
     preferenceTags: [] as ReturnType<typeof preferenceSummary>,
     hasRemovablePreferences: false,
     hasAllergens: false,
@@ -64,6 +78,7 @@ Page({
     busy: false,
     ingredientCount: Object.keys(FOOD_BY_ID).length
   },
+  expandedTakeoutMeals: [] as string[],
 
   async onShow() {
     if (operationInProgress) {
@@ -136,7 +151,8 @@ Page({
       });
       return;
     }
-    const isOldDate = state.currentPlan.date !== localDate();
+    const isOldDate = state.currentPlan.date < localDate();
+    const isFutureDate = state.currentPlan.date > localDate();
     const planBlockedByPreferences =
       state.planNeedsRefresh && state.planRefreshReason === "preferences_changed";
     let planNotice = "";
@@ -146,15 +162,28 @@ Page({
       planNotice = "偏好已保存，但当前菜单不满足新条件，请调整偏好或重新生成后再使用。";
     } else if (isOldDate) {
       planNotice = `这是 ${dateLabel(state.currentPlan.date)} 保存的菜单，打开应用不会自动替换。`;
+    } else if (isFutureDate) {
+      planNotice = "正在提前安排这一天。切换日期可查看其他计划，每次选择都会自动保存。";
     }
     const preferenceTags = preferenceSummary(state.preferences);
+    const planningMemberId = state.currentPlan.memberIds.includes(this.data.planningMemberId)
+      ? this.data.planningMemberId : state.currentPlan.memberIds[0];
     this.setData({
       loading: false,
       dateText: dateLabel(state.currentPlan.date),
-      profiles: toTodayProfileViewModels(state.currentPlan),
+      selectedDate: state.currentPlan.date, today: localDate(), lastPlanningDate: dateOffset(14),
+      planningMemberId,
+      planningMembers: state.profiles.map(profile => ({id: profile.id, name: profile.name, emoji: profile.emoji ?? "👤"})),
+      dateOptions: Array.from({length: 7}, (_, index) => {
+        const date = dateOffset(index);
+        return {date, label: index === 0 ? "今天" : index === 1 ? "明天" : `${Number(date.slice(5, 7))}/${Number(date.slice(8))}`,
+          saved: state!.history.some(plan => plan.date === date)};
+      }),
+      planningStatus: planningSummary(state),
+      profiles: planBlockedByPreferences ? [] : toTodayProfileViewModels(state.currentPlan, state.preferences),
       meals: planBlockedByPreferences
         ? []
-        : toMealViewModels(state.currentPlan, state.preferences.allergens),
+        : toPlannedMeals(state, planningMemberId, this.expandedTakeoutMeals),
       preferenceTags,
       hasRemovablePreferences: preferenceTags.some((tag) => tag.removable),
       hasAllergens: state.preferences.allergens.length > 0,
@@ -163,9 +192,7 @@ Page({
       planBlockedByPreferences,
       generateButtonText: state.planNeedsRefresh
         ? "按新设置重算"
-        : isOldDate
-          ? "生成今日菜单"
-          : "换一套家常菜",
+        : "换当天自炊菜谱",
       errorMessage: ""
     });
   },
@@ -195,12 +222,96 @@ Page({
     }
   },
 
-  async onGoTakeout(event: WechatMiniprogram.TouchEvent) {
-    const meal = event.currentTarget.dataset.meal === "dinner" ? "dinner" : "lunch";
+  async mutatePlan(change: (latest: AppState) => AppState) {
+    if (!state || operationInProgress) return;
+    operationInProgress = true;
+    this.setData({busy: true, errorMessage: ""});
     try {
-      await wx.navigateTo({ url: `/pages/takeout/takeout?meal=${meal}` });
-    } catch {
-      wx.showToast({ title: "外卖页面暂时无法打开，请重试", icon: "none" });
+      state = await getAppStateRepository().update(change);
+      this.renderState();
+    } catch (error) {
+      await this.refreshAfterFailedMutation();
+      this.setData({errorMessage: error instanceof Error ? `未保存：${error.message}` : "未保存，请重试。"});
+    } finally {
+      operationInProgress = false;
+      this.setData({busy: false});
+      await this.flushPendingRefresh();
+    }
+  },
+
+  onPlanDateChange(event: WechatMiniprogram.PickerChange) {
+    const date = String(event.detail.value);
+    return this.mutatePlan(latest => selectPlanDate(latest, date));
+  },
+  onPlanDateTap(event: WechatMiniprogram.TouchEvent) {
+    const date = String(event.currentTarget.dataset.date ?? "");
+    return this.mutatePlan(latest => selectPlanDate(latest, date));
+  },
+  onPlanningMemberTap(event: WechatMiniprogram.TouchEvent) {
+    if (!state || operationInProgress) return;
+    const id = String(event.currentTarget.dataset.id ?? "");
+    if (!state.profiles.some(profile => profile.id === id)) return;
+    this.setData({planningMemberId: id});
+    this.renderState();
+  },
+  onDiningSourceTap(event: WechatMiniprogram.TouchEvent) {
+    if (!state?.currentPlan) return Promise.resolve();
+    const {meal, source} = event.currentTarget.dataset;
+    if (!isPlannableMeal(meal) || (source !== "home" && source !== "takeout")) return Promise.resolve();
+    const planId = state.currentPlan.id, memberId = this.data.planningMemberId;
+    return this.mutatePlan(latest => setMealDining(latest, planId, meal, memberId, source));
+  },
+  onPlannedTakeoutTap(event: WechatMiniprogram.TouchEvent) {
+    if (!state?.currentPlan) return Promise.resolve();
+    const {meal, id} = event.currentTarget.dataset;
+    if (!isPlannableMeal(meal) || typeof id !== "string") return Promise.resolve();
+    const planId = state.currentPlan.id, memberId = this.data.planningMemberId;
+    return this.mutatePlan(latest => setMealDining(latest, planId, meal, memberId, "takeout", id));
+  },
+  onMoreTakeoutTap(event: WechatMiniprogram.TouchEvent) {
+    if (operationInProgress) return;
+    const meal = String(event.currentTarget.dataset.meal ?? "");
+    this.expandedTakeoutMeals = this.expandedTakeoutMeals.includes(meal)
+      ? this.expandedTakeoutMeals.filter(item => item !== meal) : [...this.expandedTakeoutMeals, meal];
+    this.renderState();
+  },
+  onPlannedFavoriteTap(event: WechatMiniprogram.TouchEvent) {
+    const {meal, id} = event.currentTarget.dataset;
+    const memberId = this.data.planningMemberId;
+    if (!isPlannableMeal(meal) || typeof id !== "string") return Promise.resolve();
+    return this.mutatePlan(latest => {
+      const profile = latest.profiles.find(item => item.id === memberId);
+      if (!profile || !getTakeoutRecommendations({profile, preferences: latest.preferences, mealType: meal}).matches.some(item => item.template.id === id)) {
+        throw new Error("搭配已变化，请重新选择。");
+      }
+      return toggleTakeoutFavorite(latest, id);
+    });
+  },
+  async onCopyPlannedOrder(event: WechatMiniprogram.TouchEvent) {
+    if (!state?.currentPlan || operationInProgress) return;
+    const planId = state.currentPlan.id, memberId = this.data.planningMemberId;
+    const mealType = event.currentTarget.dataset.meal;
+    const keywordOnly = event.currentTarget.dataset.kind === "keyword";
+    operationInProgress = true;
+    this.setData({busy: true, errorMessage: ""});
+    try {
+      state = await getAppStateRepository().load();
+      const plan = state.currentPlan;
+      if (!plan || plan.id !== planId) throw new Error("计划已变化，请重新选择。");
+      const meal = plan.meals.find(item => item.type === mealType);
+      const selected = meal && usableTakeout(meal, plan, memberId, state.preferences);
+      if (!selected) throw new Error("这餐外卖需要重新选择。");
+      const exclusions = preferenceSummary(state.preferences).filter(item => item.tone === "exclude").map(item => item.label);
+      await wx.setClipboardData({data: keywordOnly ? selected.searchKeyword : selected.orderText +
+        (exclusions.length ? ` 饮食要求：${exclusions.join("、")}；请确认配菜和调料。` : "")});
+      this.renderState();
+    } catch (error) {
+      this.renderState();
+      this.setData({errorMessage: error instanceof Error ? `复制失败：${error.message}` : "复制失败，请重试。"});
+    } finally {
+      operationInProgress = false;
+      this.setData({busy: false});
+      await this.flushPendingRefresh();
     }
   },
 
@@ -273,7 +384,7 @@ Page({
         const result = preparePreferencePlanChange(
           latest,
           edited.preferences,
-          { date: localDate() }
+          { date: latest.currentPlan?.date ?? localDate() }
         );
         return {
           state: result.state,
@@ -337,9 +448,9 @@ Page({
     this.setData({ busy: true, errorMessage: "" });
     try {
       state = await getAppStateRepository().update((latest) =>
-        regeneratePlan(latest, { date: localDate() })
+        regeneratePlan(latest, { date: latest.currentPlan?.date ?? localDate() })
       );
-      this.setData({ assistantReply: "已换一套菜单，所有偏好继续保留。" });
+      this.setData({ assistantReply: "已更换当天的自炊菜谱，外卖安排和其他日期的计划会保留。" });
       this.renderState();
     } catch (error) {
       await this.refreshAfterFailedMutation();

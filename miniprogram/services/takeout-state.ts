@@ -42,7 +42,7 @@ function isIdentifier(value: unknown): value is string {
 }
 
 /** Check calendar dates without Date.parse's rollover and timezone behaviour. */
-function isCalendarDate(value: unknown): value is string {
+export function isCalendarDate(value: unknown): value is string {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
   }

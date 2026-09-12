@@ -80,14 +80,15 @@ export class WeChatAutomation {
   async currentPage(): Promise<SimulatorPage> { return this.send("App.getCurrentPage"); }
 
   async route(path: string, method: "switchTab" | "reLaunch" = "switchTab") {
+    const previous = method === "reLaunch" ? await this.currentPage() : undefined;
     await this.wx(method, { url: `/${path}` });
     let page!: SimulatorPage;
     await until(async () => {
       page = await this.currentPage();
-      return page.path === path;
+      return page.path === path && (!previous || page.pageId !== previous.pageId);
     }, `route ${path}`);
     await this.ready(page);
-    return page;
+    return this.currentPage();
   }
 
   async data<T = any>(page: SimulatorPage): Promise<T> {
@@ -111,15 +112,23 @@ export class WeChatAutomation {
   }
 
   async element(page: SimulatorPage, selector: string): Promise<SimulatorElement> {
-    const query = async (target: SimulatorPage) => {
-      const result = await this.send("Page.getElement", { pageId: target.pageId, selector });
-      if (!result.elementId) throw new Error(`Missing visible element: ${selector}`);
-      return { ...result, pageId: target.pageId };
-    };
-    try { return await query(page); } catch (error) {
-      if (!String(error).includes("page is not on top of page stack")) throw error;
-      return query(await this.currentPage());
-    }
+    // setData is observable before the native view layer commits its nodes.
+    // Retry read-only lookup, never the tap/write itself, across that boundary.
+    let element: SimulatorElement | undefined;
+    await until(async () => {
+      const current = await this.currentPage();
+      if (current.path !== page.path) return false;
+      try {
+        const result = await this.send("Page.getElement", { pageId: current.pageId, selector });
+        if (!result.elementId) return false;
+        element = { ...result, pageId: current.pageId };
+        return true;
+      } catch (error) {
+        if (/no such element|page is not on top of page stack/.test(String(error))) return false;
+        throw error;
+      }
+    }, `rendered element ${selector} on ${page.path}`, 6000);
+    return element!;
   }
 
   async tap(page: SimulatorPage, selector: string): Promise<void> {
@@ -172,8 +181,15 @@ export class WeChatAutomation {
   }
 
   async modal(confirm: boolean): Promise<void> {
+    await this.evaluate(() => { getApp().globalData.testModalCalls = 0; });
     await this.send("App.mockWxMethod", {
-      method: "showModal", result: { confirm, cancel: !confirm, errMsg: "showModal:ok" },
+      method: "showModal",
+      functionDeclaration: `function (options) {
+        getApp().globalData.testModalCalls += 1;
+        var result = { confirm: ${confirm}, cancel: ${!confirm}, errMsg: 'showModal:ok' };
+        if (options && options.success) options.success(result);
+        return Promise.resolve(result);
+      }`,
     });
   }
 

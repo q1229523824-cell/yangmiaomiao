@@ -3,13 +3,15 @@ import { TAKEOUT_TEMPLATES } from "../data/takeout-catalog";
 import type { Allergen, FoodGroup, FoodId, Nutrition, Preferences, Profile } from "./models";
 import { addNutrition, calculateGoals, nutritionForGrams } from "./nutrition";
 
-export type TakeoutMealType = "lunch" | "dinner";
-export type TakeoutCategory = "rice" | "hotpot" | "salad" | "noodles" | "vegetarian";
+export type TakeoutMealType = "breakfast" | "lunch" | "dinner";
+export type TakeoutCategory = "rice" | "hotpot" | "salad" | "noodles" | "vegetarian" | "breakfast";
 
 export interface TakeoutTemplate {
   id: string;
   name: string;
   category: TakeoutCategory;
+  /** Existing templates default to lunch/dinner. */
+  mealTypes?: TakeoutMealType[];
   searchKeyword: string;
   orderText: string;
   portionDescription: string;
@@ -69,8 +71,8 @@ export function getTakeoutTargets(
   mealType: TakeoutMealType,
   overrides: TakeoutTargetOverrides = {},
 ): TakeoutTargets {
-  if (mealType !== "lunch" && mealType !== "dinner") {
-    throw new Error("请选择午餐或晚餐。");
+  if (mealType !== "breakfast" && mealType !== "lunch" && mealType !== "dinner") {
+    throw new Error("请选择早餐、午餐或晚餐。");
   }
   const profileValues = [
     profile.heightCm, profile.weightKg, profile.ageYears,
@@ -92,7 +94,7 @@ export function getTakeoutTargets(
       (!Number.isFinite(overrides.minProteinG) || overrides.minProteinG < 0)) {
     throw new Error("蛋白质下限需填写大于或等于0的数字。");
   }
-  const mealRatio = mealType === "lunch" ? 0.35 : 0.30;
+  const mealRatio = mealType === "breakfast" ? 0.25 : mealType === "lunch" ? 0.35 : 0.30;
   return {
     maxCaloriesKcal: overrides.maxCaloriesKcal ?? Math.round(goals.caloriesKcal * mealRatio),
     minProteinG: overrides.minProteinG ?? Math.ceil(goals.proteinG * mealRatio),
@@ -167,12 +169,13 @@ function conflictsWithPreferences(template: TakeoutTemplate, preferences: Prefer
 
 export function getTakeoutRecommendations(options: TakeoutRecommendationOptions): TakeoutRecommendationResult {
   const targets = getTakeoutTargets(options.profile, options.mealType, options);
-  const categories: string[] = ["all", "rice", "hotpot", "salad", "noodles", "vegetarian"];
+  const categories: string[] = ["all", "rice", "hotpot", "salad", "noodles", "vegetarian", "breakfast"];
   if (options.category !== undefined && !categories.includes(options.category)) {
     throw new Error("外卖分类无效，请重新选择。");
   }
   const candidates = TAKEOUT_TEMPLATES.filter((template) =>
-    !options.category || options.category === "all" || template.category === options.category);
+    (template.mealTypes ?? ["lunch", "dinner"]).includes(options.mealType) &&
+    (!options.category || options.category === "all" || template.category === options.category));
   const result: TakeoutRecommendationResult = {
     targets,
     matches: [],

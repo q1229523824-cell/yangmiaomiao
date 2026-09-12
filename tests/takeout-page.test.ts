@@ -154,11 +154,12 @@ describe("外卖页面离线交互", () => {
     expect(view.data.errorMessage).toContain("日期已变化");
     await view.onSelectTap(tap(id)); expect(stored().takeout.selections).toHaveLength(1);
   });
-  it("homepage opens a native takeout page without replacing the saved menu", async () => {
+  it("homepage selects takeout inline for the requested meal without navigating", async () => {
     await import("../miniprogram/pages/index/index");
-    const view = runtime.createPage<RuntimePage & {onGoTakeout(event: unknown): Promise<void>}>();
-    await view.onGoTakeout({currentTarget: {dataset: {meal: "dinner"}}});
-    expect(runtime.wx.navigateTo).toHaveBeenCalledWith({url: "/pages/takeout/takeout?meal=dinner"});
-    expect(runtime.wx.setStorage).not.toHaveBeenCalled();
+    const view = runtime.createPage<RuntimePage & {onShow(): Promise<void>; onDiningSourceTap(event: unknown): Promise<void>}>();
+    await view.onShow();
+    await view.onDiningSourceTap({currentTarget: {dataset: {meal: "dinner", source: "takeout"}}});
+    expect(runtime.wx.navigateTo).not.toHaveBeenCalled();
+    expect((view.data.meals as Array<{type: string; source: string}>).find(item => item.type === "dinner")?.source).toBe("takeout");
   });
 });

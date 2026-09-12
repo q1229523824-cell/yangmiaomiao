@@ -180,7 +180,7 @@ function isCheckedMap(value: unknown): value is Record<string, string[]> {
   return isRecord(value) && Object.values(value).every(isStringArray);
 }
 
-function profilesMatchSnapshot(
+export function profilesMatchSnapshot(
   profiles: readonly Profile[],
   snapshot: readonly Profile[]
 ): boolean {
@@ -267,6 +267,9 @@ export function migrateAppState(
   fromSchemaVersion: number
 ): AppState | undefined {
   if (!isRecord(value)) return undefined;
+  if (fromSchemaVersion === 3) {
+    return isAppState(value) ? value : undefined;
+  }
   if (fromSchemaVersion === 2) {
     const candidate = { ...value, takeout: createEmptyTakeoutState() };
     return isAppState(candidate) ? candidate : undefined;
@@ -324,10 +327,27 @@ export function migrateAppState(
 }
 
 export function appendPlanToHistory(state: AppState, plan: DailyPlan): AppState {
-  const history = [
+  const candidates = [
     plan,
     ...state.history.filter((item) => item.id !== plan.id)
-  ].slice(0, MAX_LOCAL_HISTORY);
+  ];
+  // Retain the latest plan for each upcoming day before pruning old revisions.
+  // Repeated edits to today's lunch must not evict tomorrow's arrangements.
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const dates = new Set<string>();
+  const protectedIds = new Set([plan.id]);
+  for (const item of candidates) {
+    if (item.date >= today && !dates.has(item.date)) {
+      dates.add(item.date);
+      protectedIds.add(item.id);
+    }
+  }
+  const retainedIds = new Set([
+    ...candidates.filter((item) => protectedIds.has(item.id)),
+    ...candidates.filter((item) => !protectedIds.has(item.id))
+  ].slice(0, MAX_LOCAL_HISTORY).map((item) => item.id));
+  const history = candidates.filter((item) => retainedIds.has(item.id));
   const retainedPlanIds = new Set(history.map((item) => item.id));
   const checkedFoodIdsByPlanId = Object.fromEntries(
     Object.entries(state.checkedFoodIdsByPlanId).filter(([planId]) =>

@@ -374,6 +374,36 @@
   margin-top: 16rpx;
   color: #aaa8b8;
 }
-.takeout-entry { border-color: rgba(116, 232, 197, .25); }
-.takeout-entry__text { display: block; color: #c5d3d1; font-size: 26rpx; line-height: 1.7; margin: 12rpx 0 20rpx; }
-.takeout-entry__button { background: #b7f4dd; color: #183c33; font-size: 28rpx; font-weight: 600; min-height: 88rpx; border-radius: 18rpx; }
+.date-heading, .date-options, .planning-members, .dining-options, .takeout-actions { display: flex; align-items: center; }
+.date-heading { justify-content: space-between; flex-wrap: wrap; gap: 12rpx; }
+.date-picker-button { padding: 16rpx; color: #ffda65; font-size: 26rpx; }
+.date-options { margin: 22rpx -5rpx 10rpx; }
+.date-option { flex: 1; min-width: 0; padding: 12rpx 0; margin: 0 4rpx; color: #d1cfdd; background: #292940; border-radius: 14rpx; font-size: 24rpx; line-height: 1.6; }
+.date-option__status { display: block; color: #a9a6ba; font-size: 18rpx; }
+.date-option--active { background: #ffd200; color: #27212a; }
+.date-option--active .date-option__status { color: #62531a; }
+.planning-hint, .planning-status, .household-summary, .takeout-estimate, .takeout-order, .takeout-portion, .target-warning, .estimate-note, .choice-title, .selected-badge { display: block; font-size: 24rpx; line-height: 1.65; word-break: break-all; }
+.planning-hint { color: #b5b2c5; margin: 12rpx 0; }
+.planning-status { color: #9cdfcc; margin-top: 16rpx; }
+.planning-members { gap: 14rpx; margin-top: 18rpx; }
+.member-option { flex: 1; min-width: 0; margin: 0; padding: 12rpx 14rpx; border-radius: 16rpx; font-size: 26rpx; line-height: 1.6; color: #cecbdf; background: #303047; }
+.member-option--active { color: #9bf1d8; border: 2rpx solid #79cdb6; }
+.dining-options { margin: 20rpx 0 12rpx; padding: 7rpx; border-radius: 18rpx; background: #161626; gap: 8rpx; }
+.dining-option { flex: 1; margin: 0; min-height: 80rpx; padding: 0 14rpx; line-height: 80rpx; font-size: 28rpx; background: transparent; color: #b7b3c6; border-radius: 13rpx; }
+.dining-option--active { background: #ffd200; color: #26202b; font-weight: 700; }
+.household-summary { color: #a8a5bb; font-size: 22rpx; margin: 12rpx 0 20rpx; }
+.selected-takeout { background: rgba(110, 220, 190, .1); border: 1rpx solid rgba(110, 220, 190, .4); border-radius: 18rpx; padding: 22rpx; margin: 18rpx 0; }
+.selected-badge, .takeout-estimate { color: #9decd5; }
+.takeout-estimate { margin: 10rpx 0; font-weight: 600; }
+.takeout-order, .takeout-portion { color: #d9d5df; margin-top: 12rpx; }
+.target-warning { color: #ffe1a0; margin: 18rpx 0; }
+.inline-takeout-choice { border: 1rpx solid #43415b; border-radius: 18rpx; padding: 22rpx; margin: 18rpx 0; background: rgba(255,255,255,.035); }
+.choice-title { font-size: 28rpx; font-weight: 600; color: #f4edf9; }
+.takeout-actions { gap: 12rpx; flex-wrap: wrap; margin-top: 20rpx; }
+.choose-takeout-button, .inline-favorite-button, .copy-order-button, .more-takeout-button { margin: 0; padding: 0 20rpx; min-height: 80rpx; line-height: 80rpx; font-size: 25rpx; border-radius: 14rpx; }
+.choose-takeout-button { flex: 1; color: #192e27; background: #aee9d5; font-weight: 600; }
+.choose-takeout-button--selected { background: #384a43 !important; color: #a6dac8 !important; }
+.inline-favorite-button, .copy-order-button, .more-takeout-button { color: #d7d1e1; background: #363449; }
+.copy-order-button { flex: 1; white-space: nowrap; }
+.more-takeout-button { width: 100%; }
+.estimate-note { color: #a19bac; font-size: 22rpx; margin-top: 20rpx; }

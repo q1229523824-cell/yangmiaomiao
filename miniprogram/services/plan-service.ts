@@ -51,6 +51,13 @@ export function regeneratePlan(
     seed: seedFromText(`${options.date}:${generationCounter}`),
     createdAt: options.createdAt
   });
+  if (state.currentPlan?.date === options.date) {
+    // Changing recipes/targets does not cancel already chosen takeout meals.
+    plan.meals = plan.meals.map(meal => {
+      const saved = state.currentPlan!.meals.find(item => item.type === meal.type);
+      return saved?.diningByMemberId ? {...meal, diningByMemberId: saved.diningByMemberId} : meal;
+    });
+  }
   return appendPlanToHistory({ ...state, generationCounter }, plan);
 }
 

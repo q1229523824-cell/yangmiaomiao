@@ -1,7 +1,7 @@
 <view class="page">
   <view class="header-block">
     <text class="title">🛒 两个人需要准备</text>
-    <text class="subtitle" wx:if="{{hasPlan}}">菜单日期 {{date}} · 勾选状态仅保存在本机</text>
+    <text class="subtitle" wx:if="{{hasPlan}}">计划日期 {{date}} · 只购买选择“自己做”的食材（含加餐）。在首页切换日期查看对应清单。</text>
   </view>
 
   <view class="card empty" wx:if="{{loading}}">正在读取本地购物清单…</view>

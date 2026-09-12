@@ -1,6 +1,6 @@
 {
   "name": "fitness-couple-miniprogram",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "离线优先的双人健身饮食微信小程序",
   "scripts": {

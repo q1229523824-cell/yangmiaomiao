@@ -1,5 +1,6 @@
 import type { DailyPlan, MealType } from "../domain/models";
 import { MAX_LOCAL_HISTORY } from "../repositories/app-state";
+import { diningChoice, nutritionRangeText, plannedNutrition, usableTakeout } from "../domain/meal-planning";
 
 const CORE_MEAL_TYPES: ReadonlyArray<MealType> = [
   "breakfast",
@@ -61,16 +62,25 @@ export function toHistoryPlanViewModels(
     meals: CORE_MEAL_TYPES.map((type) => ({
       type,
       label: CORE_MEAL_LABELS[type],
-      name: plan.meals.find((meal) => meal.type === type)?.name ?? "未记录",
+      name: (() => {
+        const meal = plan.meals.find(item => item.type === type);
+        if (!meal) return "未记录";
+        if (!plan.memberIds.some(id => diningChoice(meal, id).source === "takeout")) return meal.name;
+        return plan.profilesSnapshot.map(person => `${person.name}：${diningChoice(meal, person.id).source === "home"
+          ? meal.name : usableTakeout(meal, plan, person.id, plan.preferencesSnapshot)?.name ?? "外卖待选"}`).join("；");
+      })(),
     })),
     calories: plan.memberIds.slice(0, 2).map((memberId) => {
       const profile = plan.profilesSnapshot.find((item) => item.id === memberId);
       const calories = plan.nutritionByMemberId[memberId]?.caloriesKcal;
+      const estimate = plannedNutrition(plan, memberId);
       return {
         memberId,
         memberName: profile?.name ?? memberId,
         emoji: profile?.emoji ?? "👤",
-        value: Number.isFinite(calories) ? `${calories} kcal` : "未记录",
+        value: estimate.hasTakeout
+          ? `${nutritionRangeText(estimate.min.caloriesKcal, estimate.max.caloriesKcal)} kcal${estimate.pendingMeals ? "（部分待选）" : ""}`
+          : Number.isFinite(calories) ? `${calories} kcal` : "未记录",
       };
     }),
   }));

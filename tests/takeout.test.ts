@@ -19,6 +19,7 @@ function options(overrides: Partial<TakeoutRecommendationOptions> = {}): Takeout
     ...overrides,
   };
 }
+const lunchTemplates = TAKEOUT_TEMPLATES.filter(item => (item.mealTypes ?? ["lunch", "dinner"]).includes("lunch"));
 
 describe("offline takeout estimates", () => {
   it("uses complete catalog ingredients and declared portions for every order combination", () => {
@@ -105,7 +106,7 @@ describe("takeout targets and matching", () => {
   it("returns honest alternatives when nothing fits instead of silently relaxing targets", () => {
     const result = getTakeoutRecommendations(options({ maxCaloriesKcal: 50, minProteinG: 150 }));
     expect(result.matches).toEqual([]);
-    expect(result.alternatives).toHaveLength(TAKEOUT_TEMPLATES.length);
+    expect(result.alternatives).toHaveLength(lunchTemplates.length);
     expect(result.alternatives.every((item) => !item.meetsTargets && item.mismatchReasons.length === 2)).toBe(true);
     expect(result.targets).toMatchObject({ maxCaloriesKcal: 50, minProteinG: 150 });
   });
@@ -154,7 +155,7 @@ describe("takeout hard preference exclusions", () => {
     const result = getTakeoutRecommendations(options({ preferences, maxCaloriesKcal: 999 }));
     const visible = [...result.matches, ...result.alternatives];
     expect(visible.map((item) => item.template.id)).toEqual(["egg_vegetable_rice_soy_milk"]);
-    expect(result.excludedCount).toBe(TAKEOUT_TEMPLATES.length - 1);
+    expect(result.excludedCount).toBe(lunchTemplates.length - 1);
   });
 
   it("a specific shrimp exclusion also excludes unspecified shellfish broths and sauces", () => {
@@ -196,7 +197,7 @@ describe("takeout hard preference exclusions", () => {
     expect(result.matches).toEqual([]);
     expect(result.alternatives).toEqual([]);
     expect(result.blockedReason).toContain("交叉接触");
-    expect(result.excludedCount).toBe(TAKEOUT_TEMPLATES.length);
+    expect(result.excludedCount).toBe(lunchTemplates.length);
   });
 
   it("does not repopulate alternatives when every category is excluded", () => {
@@ -205,6 +206,6 @@ describe("takeout hard preference exclusions", () => {
     const result = getTakeoutRecommendations(options({ preferences }));
     expect(result.matches).toEqual([]);
     expect(result.alternatives).toEqual([]);
-    expect(result.excludedCount).toBe(TAKEOUT_TEMPLATES.length);
+    expect(result.excludedCount).toBe(lunchTemplates.length);
   });
 });

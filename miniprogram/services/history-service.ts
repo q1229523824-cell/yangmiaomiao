@@ -1,6 +1,7 @@
 import type { Preferences, Profile } from "../domain/models";
 import { validatePlanAgainstPreferences } from "../domain/plan-validator";
 import type { AppState } from "../repositories/app-state";
+import { diningChoice, usableTakeout } from "../domain/meal-planning";
 
 export class HistoryPlanNotFoundError extends Error {
   constructor(planId: string) {
@@ -78,11 +79,18 @@ export function restorePlanFromHistory(
     selected,
     restoredPreferences,
   ).valid;
-  if (violatesCurrentSafety) throw new HistoryPlanSafetyError();
+  const blockedTakeout = selected.meals.some(meal => selected.memberIds.some(id => {
+    const choice = diningChoice(meal, id);
+    return choice.source === "takeout" && choice.takeout && !usableTakeout(meal, selected, id, restoredPreferences);
+  }));
+  if (violatesCurrentSafety || blockedTakeout) throw new HistoryPlanSafetyError();
 
   return {
     ...state,
     currentPlan: selected,
+    // A restore is an explicit choice for that date, not just a temporary view.
+    // Keep every revision but promote this one for subsequent date navigation.
+    history: [selected, ...state.history.filter(plan => plan.id !== selected.id)],
     preferences: restoredPreferences,
     planNeedsRefresh: !usesCurrentProfiles,
     planRefreshReason: usesCurrentProfiles ? null : "profile_changed",

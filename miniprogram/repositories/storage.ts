@@ -1,5 +1,5 @@
 export const STORAGE_NAMESPACE = "fitness-couple";
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export interface StorageAdapter {
   get<T>(key: string): Promise<T | undefined>;

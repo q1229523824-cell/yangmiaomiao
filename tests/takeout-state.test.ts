@@ -215,7 +215,7 @@ describe("外卖点单参考本地状态", () => {
 });
 
 describe("外卖状态的迁移、备份和共享事务", () => {
-  it("migrates v2 storage to v3 while preserving every existing state field", async () => {
+  it("migrates v2 storage to current schema while preserving every existing state field", async () => {
     const original = stateWithPlan();
     const { takeout: _takeout, ...v2 } = original;
     const adapter = new MemoryStorage();
@@ -223,9 +223,9 @@ describe("外卖状态的迁移、备份和共享事务", () => {
     const repository = repositoryFor(adapter);
     const loaded = await repository.load();
 
-    expect(CURRENT_SCHEMA_VERSION).toBe(3);
+    expect(CURRENT_SCHEMA_VERSION).toBe(4);
     expect(loaded).toEqual(original);
-    expect(adapter.values.get(namespacedKey("app-state"))).toMatchObject({ schemaVersion: 3, data: original });
+    expect(adapter.values.get(namespacedKey("app-state"))).toMatchObject({ schemaVersion: CURRENT_SCHEMA_VERSION, data: original });
     expect(await repository.load()).toEqual(loaded);
   });
 
@@ -256,17 +256,17 @@ describe("外卖状态的迁移、备份和共享事务", () => {
     expect((await repository.load()).takeout.favoriteTemplateIds).toEqual(["chicken-rice"]);
   });
 
-  it.each([2, 3])("does not overwrite damaged schema %i storage", async (schemaVersion) => {
+  it.each([2, 3, 4])("does not overwrite damaged schema %i storage", async (schemaVersion) => {
     const adapter = new MemoryStorage();
     const original = stateWithPlan();
-    const data = schemaVersion === 3
+    const data = schemaVersion >= 3
       ? { ...original, takeout: { favoriteTemplateIds: [], selections: [{ ...selectionFor(original), date: "broken" }] } }
       : { ...original, history: "broken" };
     const stored = { schemaVersion, savedAt: SAVED_AT, data };
     adapter.values.set(namespacedKey("app-state"), stored);
     const write = vi.spyOn(adapter, "set");
     const repository = repositoryFor(adapter);
-    await expect(repository.load()).rejects.toMatchObject({ code: schemaVersion === 3 ? "INVALID_CURRENT_DATA" : "MIGRATION_FAILED" });
+    await expect(repository.load()).rejects.toMatchObject({ code: schemaVersion === CURRENT_SCHEMA_VERSION ? "INVALID_CURRENT_DATA" : "MIGRATION_FAILED" });
     await expect(repository.update((state) => toggleTakeoutFavorite(state, "chicken-rice"))).rejects.toThrow();
     expect(write).not.toHaveBeenCalled();
     expect(adapter.values.get(namespacedKey("app-state"))).toBe(stored);

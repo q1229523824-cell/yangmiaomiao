@@ -1,50 +1,114 @@
 <view class="page">
   <view class="hero">
-    <text class="hero__title">🍳 双人家常健身饮食助手</text>
-    <text class="hero__subtitle">同锅同菜 · 各自分量 · 做饭前直接称生重</text>
+    <text class="hero__title">🍳 提前安排，好好吃饭</text>
+    <text class="hero__subtitle">早餐、午餐、晚餐 · 自己做或点外卖</text>
   </view>
-
-  <view class="card takeout-entry">
-    <view>
-      <text class="section-title">🥡 忙起来，也能好好吃饭</text>
-      <text class="takeout-entry__text">看看外卖怎么点：按各自目标选搭配，收藏常点组合。</text>
+  <view class="card loading-card" wx:if="{{loading}}">正在读取本地计划…</view>
+  <view class="card planning-toolbar" wx:if="{{!loading && dateText}}">
+    <view class="date-heading">
+      <text class="section-title">{{dateText}}</text>
+      <picker id="plan-date-picker" mode="date" value="{{selectedDate}}" start="{{today}}" end="{{lastPlanningDate}}" bindchange="onPlanDateChange" disabled="{{busy}}">
+        <view class="date-picker-button">选日期 ▾</view>
+      </picker>
     </view>
-    <button class="takeout-entry__button" bindtap="onGoTakeout" data-meal="lunch">外卖怎么点 ›</button>
+    <view class="date-options">
+      <button wx:for="{{dateOptions}}" wx:key="date" class="date-option {{selectedDate === item.date ? 'date-option--active' : ''}}" data-date="{{item.date}}" bindtap="onPlanDateTap" disabled="{{busy}}">
+        <text>{{item.label}}</text><text class="date-option__status">{{item.saved ? '已安排' : '待安排'}}</text>
+      </button>
+    </view>
+    <text class="planning-hint">可提前安排未来两周。先选成员，再为每一餐选择吃法。</text>
+    <view class="planning-members">
+      <button wx:for="{{planningMembers}}" wx:key="id" class="member-option {{planningMemberId === item.id ? 'member-option--active' : ''}}" data-id="{{item.id}}" bindtap="onPlanningMemberTap" disabled="{{busy}}">{{item.emoji}} {{item.name}}</button>
+    </view>
+    <text class="planning-status">{{planningStatus}}</text>
   </view>
-
-  <view class="card loading-card" wx:if="{{loading}}">正在读取本地菜单…</view>
-
-  <view class="setup-hint" wx:if="{{!loading && dateText}}">
-    <text>首次使用？预填档案只是示例，请先核对两人的身高和体重。</text>
-    <button class="profile-link" bindtap="onGoProfile" disabled="{{busy}}">填写两人档案 ›</button>
-  </view>
-
-  <view class="toolbar" wx:if="{{!loading && dateText}}">
-    <text class="date">📅 {{dateText}}</text>
-    <button class="primary-button" bindtap="onGenerateTap" loading="{{busy}}" disabled="{{busy}}">{{generateButtonText}}</button>
-  </view>
-
   <view wx:if="{{errorMessage}}" class="error-card">
     <text>⚠️ {{errorMessage}}</text>
     <button wx:if="{{!busy && !dateText}}" class="retry-button" bindtap="onRetryLoad">重新读取</button>
   </view>
   <view wx:if="{{!loading && planNotice}}" class="plan-notice {{planNoticeIsWarning ? 'plan-notice--warning' : ''}}">{{planNotice}}</view>
-  <view wx:if="{{!loading && planBlockedByPreferences}}" class="card blocked-menu">为避免误用，旧菜单已隐藏。请删除部分冲突偏好，或调整后重新生成。</view>
+  <view wx:if="{{!loading && planBlockedByPreferences}}" class="card blocked-menu">旧菜单已隐藏。请在下方调整冲突偏好，或重新生成。</view>
 
+  <view class="card meal-card" wx:for="{{meals}}" wx:key="id" wx:for-item="meal" id="meal-{{meal.type}}">
+    <text class="section-title">{{meal.heading}}</text>
+    <view class="dining-options" wx:if="{{meal.canChooseSource}}">
+      <button class="dining-option {{meal.source === 'home' ? 'dining-option--active' : ''}}" data-meal="{{meal.type}}" data-source="home" bindtap="onDiningSourceTap" disabled="{{busy}}">🍳 自己做</button>
+      <button class="dining-option {{meal.source === 'takeout' ? 'dining-option--active' : ''}}" data-meal="{{meal.type}}" data-source="takeout" bindtap="onDiningSourceTap" disabled="{{busy}}">🥡 外卖</button>
+    </view>
+    <text class="household-summary">{{meal.householdSummary}}</text>
+    <block wx:if="{{meal.source === 'home'}}">
+      <view class="meal-heading">
+        <text class="meal-name">{{meal.name}}</text><text class="meal-method">{{meal.method}}</text>
+      </view>
+      <view class="ingredient-row ingredient-row--header">
+        <text class="ingredient-name">食材</text>
+        <text class="portion" wx:for="{{profiles}}" wx:key="id" wx:for-item="profile">{{profile.name}}</text>
+      </view>
+      <view class="ingredient-row" wx:for="{{meal.rows}}" wx:key="id" wx:for-item="row">
+        <view class="ingredient-name"><text>{{row.foodName}}</text><text class="weight-state">{{row.weightState}}</text></view>
+        <text class="portion" wx:for="{{row.portions}}" wx:key="memberId" wx:for-item="portion">{{portion.gramsText}}</text>
+      </view>
+      <view class="tip"><text class="tip__strong">好吃关键：</text>{{meal.tip}}</view>
+      <view class="tip" wx:if="{{meal.sauce}}">{{meal.sauce}}</view>
+    </block>
+    <view class="inline-takeout" wx:else>
+      <text class="planning-hint">正在安排 {{meal.planningFor}} 的这一餐</text>
+      <view class="selected-takeout" wx:if="{{meal.selectedTakeout}}">
+        <text class="selected-badge">✓ 这餐已安排</text>
+        <text class="meal-name">{{meal.selectedTakeout.name}}</text>
+        <text class="takeout-estimate">约 {{meal.selectedCalories}} 千卡 · 蛋白质 {{meal.selectedProtein}} 克</text>
+        <text class="takeout-order">{{meal.selectedTakeout.portionDescription}}</text>
+        <text class="takeout-order" wx:if="{{meal.expanded}}">点单要求：{{meal.selectedTakeout.orderText}}</text>
+        <text class="target-warning" wx:if="{{meal.selectedWarning}}">{{meal.selectedWarning}}</text>
+        <view class="takeout-actions">
+          <button class="copy-order-button" data-meal="{{meal.type}}" data-kind="order" bindtap="onCopyPlannedOrder" disabled="{{busy}}">复制点单要求</button>
+          <button class="copy-order-button" data-meal="{{meal.type}}" data-kind="keyword" bindtap="onCopyPlannedOrder" disabled="{{busy}}">复制搜索词</button>
+        </view>
+      </view>
+      <text class="target-warning" wx:if="{{meal.pending}}">这餐还没选好，先保存外卖吃法。选好下面的搭配后就会计入计划。</text>
+      <text class="target-warning" wx:if="{{meal.blockedReason}}">{{meal.blockedReason}}</text>
+      <block wx:else>
+        <block wx:if="{{!meal.selectedTakeout || meal.expanded}}">
+        <text class="planning-hint">{{meal.targetText}}</text>
+        <text class="planning-hint" wx:if="{{!meal.choices.length}}">暂无符合当前目标和忌口的搭配，可以先选择自己做。</text>
+        <view class="inline-takeout-choice" wx:for="{{meal.choices}}" wx:key="id" wx:for-item="choice">
+          <text class="choice-title">{{choice.name}}</text>
+          <text class="takeout-estimate">{{choice.calories}} 千卡 · 蛋白质 {{choice.protein}} 克</text>
+          <text class="planning-hint">碳水 {{choice.carbs}} 克 · 脂肪 {{choice.fat}} 克</text>
+          <text class="takeout-portion">{{choice.portion}}</text>
+          <view class="takeout-actions">
+            <button class="choose-takeout-button {{choice.isSelected ? 'choose-takeout-button--selected' : ''}}" data-meal="{{meal.type}}" data-id="{{choice.id}}" bindtap="onPlannedTakeoutTap" disabled="{{busy || choice.isSelected}}">{{choice.isSelected ? '已选这份' : '这餐吃这个'}}</button>
+            <button class="inline-favorite-button" data-meal="{{meal.type}}" data-id="{{choice.id}}" bindtap="onPlannedFavoriteTap" disabled="{{busy}}">{{choice.isFavorite ? '★ 已收藏' : '☆ 收藏'}}</button>
+          </view>
+        </view>
+        </block>
+        <button wx:if="{{meal.selectedTakeout || meal.hasMore}}" class="more-takeout-button" data-meal="{{meal.type}}" bindtap="onMoreTakeoutTap" disabled="{{busy}}">{{meal.expanded ? '收起搭配' : (meal.selectedTakeout ? '更换搭配 / 查看点单要求' : '看看更多搭配')}}</button>
+      </block>
+      <text class="estimate-note">按所列份量估算，实际用油、配料和商品会影响营养。此处提前选餐，到外卖平台自行下单。</text>
+    </view>
+  </view>
+
+  <view class="toolbar" wx:if="{{!loading && dateText}}">
+    <text class="planning-hint">想换自炊菜谱？外卖安排会保留。</text>
+    <button class="primary-button" bindtap="onGenerateTap" loading="{{busy}}" disabled="{{busy}}">{{generateButtonText}}</button>
+  </view>
   <view class="profile-grid" wx:if="{{!loading && dateText}}">
     <view class="card profile-card" wx:for="{{profiles}}" wx:key="id" wx:for-item="profile">
-      <text class="section-title">{{profile.emoji}} {{profile.name}} · 今日概览</text>
+      <text class="section-title">{{profile.emoji}} {{profile.name}} · 当天计划估算</text>
       <view class="stats-grid">
         <view class="stat" wx:for="{{profile.stats}}" wx:key="label" wx:for-item="stat">
-          <text class="stat__label">{{stat.label}}</text>
-          <text class="stat__value">{{stat.value}}</text>
+          <text class="stat__label">{{stat.label}}</text><text class="stat__value">{{stat.value}}</text>
         </view>
       </view>
     </view>
   </view>
-
+  <view class="setup-hint" wx:if="{{!loading && dateText}}">
+    <text>预填档案只是示例，请核对两人的身高、体重和目标。概览是用餐计划，并非实际摄入。</text>
+    <button class="profile-link" bindtap="onGoProfile" disabled="{{busy}}">填写两人档案 ›</button>
+  </view>
   <view class="card assistant-card" wx:if="{{!loading && dateText}}">
     <text class="section-title">🤖 离线饮食小助手</text>
+    <text class="planning-hint">忌口对所有日期生效；修改后重新计算当前日期的自炊菜单。</text>
     <view class="locks">
       <text class="lock">🔒 同菜不同量</text>
       <text class="lock">🔒 禁忌优先</text>
@@ -73,31 +137,9 @@
     <button wx:if="{{hasRemovablePreferences}}" class="clear-preferences" size="mini" bindtap="onClearPreferences" disabled="{{busy}}">清空普通偏好（保留过敏原）</button>
   </view>
 
-  <view class="card meal-card" wx:for="{{meals}}" wx:key="id" wx:for-item="meal">
-    <view class="meal-heading">
-      <view class="meal-heading__content">
-        <text class="section-title">{{meal.heading}}</text>
-        <text class="meal-name">{{meal.name}}</text>
-      </view>
-      <text class="meal-method">{{meal.method}}</text>
-    </view>
-    <view class="ingredient-row ingredient-row--header">
-      <text class="ingredient-name">食材</text>
-      <text class="portion" wx:for="{{profiles}}" wx:key="id" wx:for-item="profile">{{profile.name}}</text>
-    </view>
-    <view class="ingredient-row" wx:for="{{meal.rows}}" wx:key="id" wx:for-item="row">
-      <view class="ingredient-name">
-        <text>{{row.foodName}}</text>
-        <text class="weight-state">{{row.weightState}}</text>
-      </view>
-      <text class="portion" wx:for="{{row.portions}}" wx:key="memberId" wx:for-item="portion">{{portion.gramsText}}</text>
-    </view>
-    <view class="tip"><text class="tip__strong">好吃关键：</text>{{meal.tip}}</view>
-    <view class="tip" wx:if="{{meal.sauce}}">{{meal.sauce}}</view>
-  </view>
 
   <view class="footer-note" wx:if="{{!loading && dateText}}">
-    <text>营养值按常见食材近似估算，仅供日常健身饮食参考。当前含 {{ingredientCount}} 种本地食材。</text>
-    <text class="offline-note">首次进入和版本更新需要联网。加载完成后，菜单、档案、购物清单和历史可离线使用；数据留在本机，两台手机不会自动同步。</text>
+    <text>营养为日常参考估算。购物清单仅统计自己做的食材，外卖待选时仅合计已选部分。</text>
+    <text class="offline-note">首次进入和更新需要联网。加载后可离线安排菜单、查看档案、购物清单和历史；数据留在本机，两台手机不会自动同步。</text>
   </view>
 </view>
