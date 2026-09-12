@@ -1,0 +1,127 @@
+<template name="takeout-card">
+  <view class="food-card {{item.meetsTargets ? '' : 'food-card--alternative'}}">
+    <view class="food-heading">
+      <view class="food-heading__content">
+        <text class="eyebrow">{{item.categoryLabel}}</text>
+        <text class="food-name">{{item.name}}</text>
+      </view>
+      <button class="favorite-button {{item.isFavorite ? 'favorite-button--active' : ''}}" disabled="{{busy}}" data-id="{{item.id}}" bindtap="onFavoriteTap" aria-label="{{item.isFavorite ? '取消收藏' : '收藏'}}{{item.name}}">{{item.isFavorite ? '★ 已收藏' : '☆ 收藏'}}</button>
+    </view>
+    <text class="portion">{{item.portionDescription}}</text>
+    <view class="nutrition-heading">
+      <text>这份搭配的营养</text>
+      <text class="estimate-tag">估算区间</text>
+    </view>
+    <view class="nutrition-grid">
+      <view class="nutrition-item nutrition-item--energy"><text class="nutrition-label">热量</text><text class="nutrition-value">{{item.caloriesText}}</text></view>
+      <view class="nutrition-item"><text class="nutrition-label">蛋白质</text><text class="nutrition-value">{{item.proteinText}}</text></view>
+      <view class="nutrition-item"><text class="nutrition-label">碳水</text><text class="nutrition-value">{{item.carbsText}}</text></view>
+      <view class="nutrition-item"><text class="nutrition-label">脂肪</text><text class="nutrition-value">{{item.fatText}}</text></view>
+    </view>
+    <view wx:if="{{item.reasonText}}" class="match-reason {{item.meetsTargets ? '' : 'match-reason--alternative'}}">{{item.reasonText}}</view>
+    <view class="card-actions">
+      <button class="action-button secondary-button" disabled="{{busy}}" data-id="{{item.id}}" bindtap="onToggleDetails">{{item.expanded ? '收起详情 ↑' : '查看怎么点 ↓'}}</button>
+      <button class="action-button secondary-button" disabled="{{busy}}" data-id="{{item.id}}" bindtap="onCopyKeyword">复制搜索词</button>
+    </view>
+    <view wx:if="{{item.expanded}}" class="food-details">
+      <text class="detail-title">去外卖平台搜</text>
+      <text class="search-keyword">{{item.searchKeyword}}</text>
+      <text class="detail-title">点单时这样选</text>
+      <text class="order-text">{{item.orderText}}</text>
+      <view wx:if="{{item.tips.length}}" class="detail-list">
+        <view wx:for="{{item.tips}}" wx:for-item="tip" wx:key="*this" class="detail-line"><text class="detail-dot">·</text><text class="detail-line__text">{{tip}}</text></view>
+      </view>
+      <view wx:if="{{item.assumptions.length}}" class="assumptions">
+        <text class="detail-title">这些估算基于</text>
+        <view wx:for="{{item.assumptions}}" wx:for-item="assumption" wx:key="*this" class="detail-line"><text class="detail-dot">·</text><text class="detail-line__text">{{assumption}}</text></view>
+      </view>
+      <button wx:if="{{item.meetsTargets}}" class="wide-button secondary-button" disabled="{{busy}}" data-id="{{item.id}}" bindtap="onCopyOrder">复制点单建议</button>
+    </view>
+    <button class="wide-button primary-button" disabled="{{busy || !item.meetsTargets}}" data-id="{{item.id}}" bindtap="onSelectTap">{{item.meetsTargets ? '记录为本餐点单参考' : '未符合当前条件，暂不记录'}}</button>
+  </view>
+</template>
+
+<view class="page takeout-page">
+  <view class="hero">
+    <text class="hero__label">外卖怎么点 · 离线可用</text>
+    <text class="hero__title">忙一点，也能好好吃</text>
+    <text class="hero__subtitle">选好搭配和份量，再去外卖平台找一份合适的饭。</text>
+  </view>
+
+  <view wx:if="{{loading}}" class="card state-card"><text class="section-title">正在准备点单参考…</text></view>
+  <view wx:elif="{{errorMessage}}" class="card error-card">
+    <text class="section-title">暂时没能加载</text>
+    <text class="body-text">{{errorMessage}}</text>
+    <button class="wide-button secondary-button" bindtap="onRetryLoad">重试加载</button>
+  </view>
+  <block wx:else>
+    <view class="card context-card">
+      <view class="section-heading"><text class="section-title">给谁选哪一餐</text><text class="date-text">{{dateText}}</text></view>
+      <view class="member-options">
+        <button wx:for="{{members}}" wx:key="id" class="member-option {{memberId === item.id ? 'option--active' : ''}}" disabled="{{busy}}" data-id="{{item.id}}" bindtap="onMemberTap"><text class="member-emoji">{{item.emoji}}</text><text class="member-name">{{item.name}}</text></button>
+      </view>
+      <view class="meal-options">
+        <button class="meal-option {{mealType === 'lunch' ? 'option--active' : ''}}" disabled="{{busy}}" data-meal="lunch" bindtap="onMealTap">午餐</button>
+        <button class="meal-option {{mealType === 'dinner' ? 'option--active' : ''}}" disabled="{{busy}}" data-meal="dinner" bindtap="onMealTap">晚餐</button>
+      </view>
+      <view class="preference-box">
+        <text class="preference-label">本次饮食偏好</text>
+        <text class="body-text">{{preferenceText}}</text>
+        <view class="card-actions">
+          <button class="action-button text-button" disabled="{{busy}}" bindtap="onGoProfile">修改身体档案 →</button>
+          <button class="action-button text-button" disabled="{{busy}}" bindtap="onGoPreferences">查看饮食忌口 →</button>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{hasSelection}}" class="card selection-card">
+      <text class="eyebrow">{{mealLabel}} · 已保存的点单参考</text>
+      <text class="selection-name">{{selectedName}}</text>
+      <text wx:if="{{selectedNotice}}" class="body-text selection-notice">{{selectedNotice}}</text>
+      <button class="wide-button secondary-button" disabled="{{busy}}" bindtap="onClearSelection">清除此餐点单参考</button>
+    </view>
+
+    <view wx:if="{{blockedReason}}" class="card blocked-card">
+      <text class="section-title">先确认饮食条件</text>
+      <text class="body-text">{{blockedReason}}</text>
+      <button class="wide-button secondary-button" disabled="{{busy}}" bindtap="onGoPreferences">查看饮食忌口</button>
+    </view>
+    <block wx:else>
+      <view class="card filter-card">
+        <text class="section-title">想吃哪一类</text>
+        <view class="category-options"><button wx:for="{{categories}}" wx:key="id" class="category-option {{category === item.id ? 'option--active' : ''}}" disabled="{{busy}}" data-id="{{item.id}}" bindtap="onCategoryTap">{{item.label}}</button></view>
+        <view class="target-heading"><text class="section-title">这一餐的筛选条件</text><text class="body-text">{{targetSummary}}</text></view>
+        <view class="target-inputs">
+          <view class="target-field"><label class="input-label" for="takeout-calories">热量上限 · 千卡</label><input id="takeout-calories" class="target-input" type="digit" value="{{maxCaloriesInput}}" placeholder="例如 650" maxlength="5" disabled="{{busy}}" bindinput="onCaloriesInput" aria-label="本餐热量上限，单位千卡" /></view>
+          <view class="target-field"><label class="input-label" for="takeout-protein">蛋白质下限 · 克</label><input id="takeout-protein" class="target-input" type="digit" value="{{minProteinInput}}" placeholder="例如 25" maxlength="5" disabled="{{busy}}" bindinput="onProteinInput" aria-label="本餐蛋白质下限，单位克" /></view>
+        </view>
+        <text wx:if="{{filterError}}" class="field-error">{{filterError}}</text>
+        <view class="card-actions"><button class="action-button secondary-button" disabled="{{busy}}" bindtap="onResetTargets">恢复默认条件</button><button class="action-button primary-button" disabled="{{busy}}" bindtap="onApplyTargets">更新推荐</button></view>
+        <button class="favorite-filter {{onlyFavorites ? 'favorite-filter--active' : ''}}" disabled="{{busy}}" bindtap="onToggleFavorites">{{onlyFavorites ? '★ 只看收藏 · 已开启' : '☆ 只看我收藏的搭配'}}</button>
+      </view>
+
+      <view wx:if="{{notice}}" class="page-notice">{{notice}}</view>
+      <view class="results-heading"><text class="section-title">{{onlyFavorites ? '收藏中符合条件的搭配' : '符合条件的搭配'}}</text><text class="result-count">{{matches.length}} 份</text></view>
+      <text class="results-note">已按饮食偏好中的忌口筛选；热量与营养素均为估算。</text>
+      <view wx:if="{{!matches.length}}" class="card empty-card">
+        <text class="empty-symbol">⌕</text>
+        <text class="section-title">暂时没有符合条件的搭配</text>
+        <text class="body-text">先检查类别、热量和蛋白质条件，可以点击“恢复默认条件”{{onlyFavorites ? '，或关闭“只看收藏”' : ''}}后再试。{{alternatives.length ? '也可以查看下方未达标搭配的差异。' : '当前内置搭配有限，未找到结果时请结合自己的饮食需求选择。'}}</text>
+        <text class="small-note">忌口不会因为没有结果而放宽。</text>
+      </view>
+      <block wx:for="{{matches}}" wx:key="id"><template is="takeout-card" data="{{item, busy}}" /></block>
+
+      <view wx:if="{{alternatives.length}}" class="alternatives-section">
+        <button class="wide-button alternatives-toggle" disabled="{{busy}}" bindtap="onToggleAlternatives">{{showAlternatives ? '收起未达标搭配 ↑' : '查看未达标搭配的差异 ↓'}}（{{alternatives.length}}）</button>
+        <block wx:if="{{showAlternatives}}">
+          <text class="results-note alternatives-note">以下搭配已排除已知忌口，但没有满足当前营养条件，仅供查看和调整参考。</text>
+          <block wx:for="{{alternatives}}" wx:key="id"><template is="takeout-card" data="{{item, busy}}" /></block>
+        </block>
+      </view>
+    </block>
+    <view class="footer-notes">
+      <text>商家做法和份量不同，少油少盐也不等于低钠；请核对配料。</text>
+      <text>复制关键词后前往外卖平台搜索；本页不下单、不读取定位。</text>
+    </view>
+  </block>
+</view>

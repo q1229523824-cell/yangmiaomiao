@@ -88,6 +88,12 @@ Profile[] + Preferences + date + seed
 
 ## 本地持久化
 
+新增外卖链路为 `Profile + Preferences → getTakeoutRecommendations → 营养区间与匹配/未匹配结果 → takeout 页面`。`data/takeout-catalog.ts` 是明确标注份量假设的本地点单组合；`domain/takeout.ts` 负责热量/蛋白门槛与主食材、潜在调料禁忌检查。它不依赖 `DailyPlan` 是否已经生成，也不把估算区间转换成该快照的精确值。
+
+`AppState.takeout` 单独保存收藏和按日期/成员/午晚餐索引的参考记录。`services/takeout-state.ts` 只做不可变状态转换，通过同一仓库事务写入；页面在事务内用最新档案、偏好重新筛选，拒绝失效卡片事件。普通打开不写入，旧参考与新条件不符时提示重新选择并允许移除；跨午夜选择会先刷新日期，清除则针对点击时展示的记录日期。
+
+schema 3 的迁移为 v2 原数据追加空外卖字段；v1 同时走既有刷新标记迁移。当前版本外卖字段损坏会停止加载；旧存储和剪贴板备份复用同一迁移路径。外卖数据随完整备份导出、恢复和清除。
+
 当前应用数据保存在命名空间键 `fitness-couple:app-state` 中，信封包含：
 
 ```text

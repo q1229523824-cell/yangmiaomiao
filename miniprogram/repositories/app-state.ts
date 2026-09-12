@@ -2,6 +2,11 @@ import { DEFAULT_PROFILES } from "../data/catalog";
 import { createEmptyPreferences } from "../domain/preference-parser";
 import type { DailyPlan, Preferences, Profile } from "../domain/models";
 import {
+  createEmptyTakeoutState,
+  isTakeoutState,
+  type TakeoutState
+} from "../services/takeout-state";
+import {
   validateDailyPlan,
   validatePlanAgainstPreferences
 } from "../domain/plan-validator";
@@ -25,6 +30,7 @@ export interface AppState {
   /** Existing plans are immutable; this flag asks the user to recalculate explicitly. */
   planNeedsRefresh: boolean;
   planRefreshReason: PlanRefreshReason;
+  takeout: TakeoutState;
 }
 
 export function createDefaultAppState(): AppState {
@@ -39,7 +45,8 @@ export function createDefaultAppState(): AppState {
     generationCounter: 0,
     checkedFoodIdsByPlanId: {},
     planNeedsRefresh: false,
-    planRefreshReason: null
+    planRefreshReason: null,
+    takeout: createEmptyTakeoutState()
   };
 }
 
@@ -211,11 +218,21 @@ export function isAppState(value: unknown): value is AppState {
     Number.isInteger(value.generationCounter) &&
     (value.generationCounter as number) >= 0 &&
     isCheckedMap(value.checkedFoodIdsByPlanId) &&
+    isTakeoutState(value.takeout) &&
     typeof value.planNeedsRefresh === "boolean" &&
     (value.planRefreshReason === null ||
       value.planRefreshReason === "profile_changed" ||
       value.planRefreshReason === "preferences_changed");
   if (!structurallyValid) return false;
+
+  const memberIds = new Set((value.profiles as Profile[]).map((profile) => profile.id));
+  if (
+    (value.takeout as TakeoutState).selections.some(
+      (selection) => !memberIds.has(selection.memberId)
+    )
+  ) {
+    return false;
+  }
 
   const currentPlan = value.currentPlan as DailyPlan | null;
   const history = value.history as DailyPlan[];
@@ -244,12 +261,17 @@ export function isAppState(value: unknown): value is AppState {
   return true;
 }
 
-/** Preserve valid v1 user data while adding explicit plan-refresh state. */
+/** Preserve v2 data exactly; older v1 data also gains plan-refresh state. */
 export function migrateAppState(
   value: unknown,
   fromSchemaVersion: number
 ): AppState | undefined {
-  if (fromSchemaVersion !== 1 || !isRecord(value)) return undefined;
+  if (!isRecord(value)) return undefined;
+  if (fromSchemaVersion === 2) {
+    const candidate = { ...value, takeout: createEmptyTakeoutState() };
+    return isAppState(candidate) ? candidate : undefined;
+  }
+  if (fromSchemaVersion !== 1) return undefined;
   const profiles = Array.isArray(value.profiles)
       ? value.profiles.filter(isProfile)
       : [];
@@ -279,6 +301,7 @@ export function migrateAppState(
       )
     : {};
   const candidate: AppState = {
+    ...value,
     profiles,
     preferences,
     currentPlan,
@@ -294,7 +317,8 @@ export function migrateAppState(
       ? "preferences_changed"
       : profileConflict
         ? "profile_changed"
-        : null
+        : null,
+    takeout: createEmptyTakeoutState()
   };
   return isAppState(candidate) ? candidate : undefined;
 }

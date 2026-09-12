@@ -195,6 +195,15 @@ Page({
     }
   },
 
+  async onGoTakeout(event: WechatMiniprogram.TouchEvent) {
+    const meal = event.currentTarget.dataset.meal === "dinner" ? "dinner" : "lunch";
+    try {
+      await wx.navigateTo({ url: `/pages/takeout/takeout?meal=${meal}` });
+    } catch {
+      wx.showToast({ title: "外卖页面暂时无法打开，请重试", icon: "none" });
+    }
+  },
+
   onRemovePreference(event: WechatMiniprogram.TouchEvent) {
     if (!state || operationInProgress) return;
     const kind = String(

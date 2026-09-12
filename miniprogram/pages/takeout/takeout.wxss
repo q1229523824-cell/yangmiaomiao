@@ -1,0 +1,547 @@
+.takeout-page {
+  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
+}
+
+.hero {
+  padding: 16rpx 6rpx 30rpx;
+}
+
+.hero__label,
+.hero__title,
+.hero__subtitle,
+.section-title,
+.eyebrow,
+.food-name,
+.portion,
+.nutrition-label,
+.nutrition-value,
+.detail-title,
+.search-keyword,
+.order-text,
+.body-text,
+.small-note,
+.selection-name,
+.results-note,
+.field-error,
+.preference-label {
+  display: block;
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+.hero__label {
+  color: #a3e9d2;
+  font-size: 23rpx;
+  letter-spacing: 1rpx;
+}
+
+.hero__title {
+  margin-top: 14rpx;
+  color: #fff4cd;
+  font-size: 42rpx;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.hero__subtitle {
+  margin-top: 12rpx;
+  color: #c3bfd2;
+  font-size: 25rpx;
+  line-height: 1.65;
+}
+
+.takeout-page .card {
+  padding: 26rpx;
+}
+
+.section-heading,
+.food-heading,
+.nutrition-heading,
+.results-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-heading {
+  flex-wrap: wrap;
+  gap: 8rpx 16rpx;
+}
+
+.section-title {
+  color: #f7f5ff;
+  font-size: 29rpx;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.date-text {
+  color: #b8b3cd;
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
+.member-options,
+.meal-options,
+.card-actions,
+.target-inputs {
+  display: flex;
+  align-items: stretch;
+  gap: 14rpx;
+}
+
+.member-options {
+  margin-top: 22rpx;
+}
+
+.member-option,
+.meal-option,
+.action-button,
+.target-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.takeout-page button {
+  box-sizing: border-box;
+  min-height: 44px;
+  margin: 0;
+  padding: 20rpx 18rpx;
+  border: 1rpx solid transparent;
+  border-radius: 18rpx;
+  font-size: 25rpx;
+  line-height: 1.55;
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+.member-option,
+.meal-option,
+.category-option {
+  color: #d9d4e7;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.member-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+}
+
+.member-emoji {
+  flex-shrink: 0;
+  font-size: 31rpx;
+}
+
+.member-name {
+  min-width: 0;
+  text-align: left;
+  word-break: break-all;
+}
+
+.meal-options {
+  margin-top: 14rpx;
+}
+
+.takeout-page .option--active {
+  color: #c3f7e7;
+  border-color: rgba(143, 230, 201, 0.55);
+  background: rgba(110, 212, 179, 0.14);
+}
+
+.preference-box {
+  margin-top: 24rpx;
+  padding-top: 22rpx;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.1);
+}
+
+.preference-label,
+.input-label {
+  color: #b8b3cd;
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
+.body-text {
+  margin-top: 9rpx;
+  color: #d1cddd;
+  font-size: 25rpx;
+  line-height: 1.65;
+}
+
+.takeout-page .text-button {
+  padding-left: 0;
+  padding-right: 0;
+  color: #adebd6;
+  background: transparent;
+  text-align: left;
+}
+
+.selection-card {
+  border-color: rgba(131, 223, 192, 0.38);
+  background: rgba(83, 176, 147, 0.13);
+}
+
+.eyebrow {
+  color: #a1e6cf;
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
+.selection-name {
+  margin-top: 14rpx;
+  color: #f2fff9;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.selection-notice {
+  color: #ffe2ab;
+}
+
+.small-note {
+  margin-top: 16rpx;
+  color: #bcb8cd;
+  font-size: 23rpx;
+  line-height: 1.65;
+}
+
+.category-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+.takeout-page .category-option {
+  padding-left: 22rpx;
+  padding-right: 22rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+}
+
+.target-heading {
+  margin-top: 28rpx;
+  padding-top: 24rpx;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.1);
+}
+
+.target-inputs {
+  margin-top: 20rpx;
+}
+
+.input-label {
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.target-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 92rpx;
+  min-height: 44px;
+  padding: 16rpx 20rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.2);
+  border-radius: 16rpx;
+  color: #f9f6ff;
+  background: rgba(10, 8, 30, 0.3);
+  font-size: 30rpx;
+}
+
+.field-error {
+  margin-top: 14rpx;
+  color: #ffbeb9;
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.card-actions {
+  margin-top: 18rpx;
+}
+
+.takeout-page .primary-button {
+  color: #123d33;
+  background: #a3e9d2;
+}
+
+.takeout-page .secondary-button {
+  color: #e5e0f1;
+  border-color: rgba(226, 222, 242, 0.17);
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.takeout-page .wide-button {
+  width: 100%;
+  margin-top: 18rpx;
+}
+
+.takeout-page .favorite-filter {
+  width: 100%;
+  margin-top: 18rpx;
+  color: #c5c0d6;
+  background: transparent;
+  text-align: left;
+}
+
+.takeout-page .favorite-filter--active {
+  color: #ffe3a1;
+  background: rgba(255, 207, 99, 0.08);
+}
+
+.page-notice {
+  margin-bottom: 24rpx;
+  padding: 20rpx 24rpx;
+  border: 1rpx solid rgba(241, 205, 130, 0.22);
+  border-radius: 20rpx;
+  color: #f1d6a2;
+  background: rgba(221, 164, 71, 0.08);
+  font-size: 24rpx;
+  line-height: 1.65;
+  word-break: break-all;
+}
+
+.results-heading {
+  gap: 14rpx;
+  margin: 32rpx 6rpx 0;
+}
+
+.result-count {
+  flex-shrink: 0;
+  color: #adebd6;
+  font-size: 24rpx;
+}
+
+.results-note {
+  margin: 12rpx 6rpx 24rpx;
+  color: #b8b3cd;
+  font-size: 23rpx;
+  line-height: 1.65;
+}
+
+.food-card {
+  margin-bottom: 24rpx;
+  padding: 26rpx;
+  border: 1rpx solid rgba(169, 222, 206, 0.2);
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.food-heading {
+  align-items: flex-start;
+  gap: 14rpx;
+}
+
+.food-heading__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.food-name {
+  margin-top: 8rpx;
+  color: #f6f4fb;
+  font-size: 33rpx;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.takeout-page .favorite-button {
+  flex-shrink: 0;
+  padding: 17rpx 14rpx;
+  color: #c8c2d8;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 23rpx;
+}
+
+.takeout-page .favorite-button--active {
+  color: #ffe2a0;
+  background: rgba(255, 206, 100, 0.1);
+}
+
+.portion {
+  margin-top: 20rpx;
+  color: #d1cddd;
+  font-size: 25rpx;
+  line-height: 1.7;
+}
+
+.nutrition-heading {
+  gap: 12rpx;
+  margin-top: 26rpx;
+  color: #b8b3cd;
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
+.estimate-tag {
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  color: #beb8d4;
+  background: rgba(255, 255, 255, 0.055);
+  font-size: 21rpx;
+}
+
+.nutrition-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 14rpx;
+}
+
+.nutrition-item {
+  flex: 0 0 calc(50% - 6rpx);
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 16rpx;
+  border-radius: 16rpx;
+  background: rgba(9, 8, 28, 0.22);
+}
+
+.nutrition-item--energy {
+  background: rgba(116, 210, 180, 0.11);
+}
+
+.nutrition-label {
+  color: #c0bbd0;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
+.nutrition-value {
+  margin-top: 7rpx;
+  color: #f3f0fb;
+  font-size: 27rpx;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.nutrition-item--energy .nutrition-value {
+  color: #baf4de;
+}
+
+.match-reason {
+  margin-top: 18rpx;
+  color: #b5e9d7;
+  font-size: 24rpx;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.food-details {
+  margin-top: 20rpx;
+  padding: 22rpx 20rpx;
+  border-radius: 20rpx;
+  background: rgba(8, 7, 26, 0.25);
+}
+
+.detail-title {
+  color: #ede9f5;
+  font-size: 25rpx;
+  line-height: 1.6;
+  font-weight: 600;
+}
+
+.search-keyword {
+  margin: 10rpx 0 22rpx;
+  color: #aee9d6;
+  font-size: 27rpx;
+  line-height: 1.6;
+}
+
+.order-text {
+  margin-top: 10rpx;
+  color: #d0cbdc;
+  font-size: 25rpx;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.detail-list {
+  margin-top: 14rpx;
+}
+
+.detail-line {
+  display: flex;
+  gap: 10rpx;
+  margin-top: 7rpx;
+  color: #bfb9d0;
+  font-size: 23rpx;
+  line-height: 1.7;
+}
+
+.detail-dot {
+  flex-shrink: 0;
+  color: #89cdb8;
+}
+
+.detail-line__text {
+  min-width: 0;
+  word-break: break-all;
+}
+
+.assumptions {
+  margin-top: 22rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.09);
+}
+
+.empty-card,
+.state-card {
+  text-align: center;
+}
+
+.empty-symbol {
+  display: block;
+  margin-bottom: 8rpx;
+  color: #a6dfcf;
+  font-size: 64rpx;
+  line-height: 1;
+}
+
+.empty-card .body-text {
+  margin-top: 14rpx;
+}
+
+.blocked-card,
+.error-card {
+  border-color: rgba(246, 182, 141, 0.35);
+  background: rgba(225, 129, 90, 0.1);
+}
+
+.blocked-card .section-title,
+.error-card .section-title {
+  color: #ffe0be;
+}
+
+.takeout-page .alternatives-toggle {
+  color: #d7c6a4;
+  border-color: rgba(225, 194, 135, 0.21);
+  background: rgba(229, 192, 117, 0.055);
+}
+
+.alternatives-note {
+  margin-top: 18rpx;
+}
+
+.food-card--alternative {
+  border-color: rgba(229, 190, 119, 0.19);
+}
+
+.match-reason--alternative {
+  color: #e8c79d;
+}
+
+.footer-notes {
+  margin: 32rpx 6rpx 6rpx;
+  color: #aaa4bf;
+  font-size: 23rpx;
+  line-height: 1.75;
+}
+
+.footer-notes text {
+  display: block;
+  margin-top: 12rpx;
+}

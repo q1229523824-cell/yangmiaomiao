@@ -4,6 +4,14 @@
     <text class="hero__subtitle">同锅同菜 · 各自分量 · 做饭前直接称生重</text>
   </view>
 
+  <view class="card takeout-entry">
+    <view>
+      <text class="section-title">🥡 忙起来，也能好好吃饭</text>
+      <text class="takeout-entry__text">看看外卖怎么点：按各自目标选搭配，收藏常点组合。</text>
+    </view>
+    <button class="takeout-entry__button" bindtap="onGoTakeout" data-meal="lunch">外卖怎么点 ›</button>
+  </view>
+
   <view class="card loading-card" wx:if="{{loading}}">正在读取本地菜单…</view>
 
   <view class="setup-hint" wx:if="{{!loading && dateText}}">

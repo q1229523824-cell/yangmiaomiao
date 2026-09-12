@@ -374,3 +374,6 @@
   margin-top: 16rpx;
   color: #aaa8b8;
 }
+.takeout-entry { border-color: rgba(116, 232, 197, .25); }
+.takeout-entry__text { display: block; color: #c5d3d1; font-size: 26rpx; line-height: 1.7; margin: 12rpx 0 20rpx; }
+.takeout-entry__button { background: #b7f4dd; color: #183c33; font-size: 28rpx; font-weight: 600; min-height: 88rpx; border-radius: 18rpx; }

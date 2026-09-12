@@ -15,6 +15,7 @@ const TODAY = "pages/index/index";
 const PROFILE = "pages/profile/profile";
 const SHOPPING = "pages/shopping/shopping";
 const HISTORY = "pages/history/history";
+const TAKEOUT = "pages/takeout/takeout";
 const KEY = namespacedKey("app-state");
 const runId = new Date().toISOString().replace(/[:.]/g, "-");
 const output = path.resolve("artifacts", "simulator", runId);
@@ -45,6 +46,8 @@ async function fixture(state: AppState = createDefaultAppState()) {
 }
 
 async function screenshot(name: string) {
+  // Data readiness precedes the native navigation/scroll animation frame.
+  await new Promise((resolve) => setTimeout(resolve, 800));
   const image = await mp.send("App.captureScreenshot");
   await writeFile(path.join(output, `${name}.png`), Buffer.from(image.data, "base64"));
   screenshots.push(`${name}.png`);
@@ -192,12 +195,21 @@ try {
     assert.equal((await stored()).currentPlan?.profilesSnapshot[0].weightKg, 62.5);
   });
 
-  await check("profile local backup copies and restores through the clipboard", async () => {
+  await check("profile local backup copies and restores through an isolated clipboard mock", async () => {
+    // Keep test payloads away from the user's OS clipboard. The automation
+    // bridge can report empty clipboard data even after the UI copy succeeds.
+    await mp.evaluate(() => { getApp().globalData.testClipboardText = ""; });
+    await mp.send("App.mockWxMethod", {method: "setClipboardData",
+      functionDeclaration: "function (options) { getApp().globalData.testClipboardText = options.data; var result = {errMsg:'setClipboardData:ok'}; if (options.success) options.success(result); return Promise.resolve(result); }"});
+    await mp.send("App.mockWxMethod", {method: "getClipboardData",
+      functionDeclaration: "function (options) { var result = {data:getApp().globalData.testClipboardText,errMsg:'getClipboardData:ok'}; if (options && options.success) options.success(result); return Promise.resolve(result); }"});
+    mocked.add("setClipboardData"); mocked.add("getClipboardData");
     let profile = await mp.route(PROFILE);
     await mp.tap(profile, "button.backup-button");
+    await until(async () => Boolean(await mp.evaluate(() => getApp().globalData.testClipboardText)), "backup copied");
     await mp.ready(profile);
-    const clipboard = await mp.wx("getClipboardData");
-    const backupPayload = JSON.parse(String(clipboard.data ?? "")) as {
+    const clipboard = await mp.evaluate(() => getApp().globalData.testClipboardText);
+    const backupPayload = JSON.parse(String(clipboard)) as {
       format?: string;
       data?: { profiles?: unknown };
     };
@@ -208,6 +220,7 @@ try {
     mocked.add("showModal");
     profile = await ensureCurrentPage(PROFILE, profile);
     await mp.tap(profile, "button.backup-button--secondary");
+    await until(async () => /已恢复/.test((await mp.data(profile)).savedMessage ?? ""), "backup restored");
     await mp.ready(profile);
     assert.equal((await mp.data(profile)).loadFailed, false);
     assert.equal((await stored()).profiles.length, backupPayload.data?.profiles?.length);
@@ -419,6 +432,76 @@ try {
     assert.deepEqual(await mp.evaluate(() => getApp().globalData.testNetworkCalls), []);
     // Fault injection proves application API independence, not phone airplane mode.
   });
+  await check("takeout native entry, details, favorites and meal reference work offline", async () => {
+    today = await fixture();
+    const before = await stored();
+    await mp.tap(today, ".takeout-entry__button");
+    await until(async () => (await mp.currentPage()).path === TAKEOUT, "takeout navigation");
+    let takeout = await mp.currentPage(); await mp.ready(takeout);
+    const data = await mp.data(takeout);
+    assert.ok(data.matches.length > 0);
+    assert.equal(data.errorMessage, "");
+    await screenshot("07-takeout-targets");
+    const id = data.matches[0].id;
+    await mp.tap(takeout, `.favorite-button[data-id="${id}"]`);
+    await until(async () => (await stored()).takeout.favoriteTemplateIds.includes(id), "save takeout favorite");
+    await mp.tap(takeout, `.primary-button[data-id="${id}"]`);
+    await until(async () => (await stored()).takeout.selections.length === 1, "save takeout reference");
+    assert.deepEqual((await stored()).currentPlan, before.currentPlan);
+    assert.deepEqual((await stored()).checkedFoodIdsByPlanId, before.checkedFoodIdsByPlanId);
+    await mp.tap(takeout, `.action-button[data-id="${id}"]`);
+    await until(async () => (await mp.data(takeout)).matches.find((item: any) => item.id === id).expanded, "takeout order details");
+    await mp.tap(takeout, `.food-details .wide-button[data-id="${id}"]`);
+    await until(async () => (await mp.evaluate(() => getApp().globalData.testClipboardText)).includes(data.matches[0].orderText), "takeout order copied to isolated clipboard");
+    await mp.wx("pageScrollTo", {scrollTop: 1080, duration: 0});
+    await screenshot("08-takeout-order");
+    const envelope = await mp.wx("getStorageSync", KEY);
+    takeout = await mp.route(TAKEOUT, "reLaunch");
+    assert.deepEqual(await mp.wx("getStorageSync", KEY), envelope);
+    assert.equal((await mp.data(takeout)).hasSelection, true);
+    await mp.tap(takeout, 'button[data-meal="dinner"]');
+    await until(async () => (await mp.data(takeout)).mealType === "dinner", "takeout meal switch rendered");
+    await mp.input(takeout, "#takeout-calories", "1");
+    await until(async () => (await mp.data(takeout)).maxCaloriesInput === "1", "takeout limit input");
+    await mp.tap(takeout, ".filter-card .primary-button");
+    await until(async () => (await mp.data(takeout)).filterError === "", "takeout limits applied");
+    assert.equal((await mp.data(takeout)).matches.length, 0);
+    assert.ok((await mp.data(takeout)).alternatives.length > 0);
+    assert.deepEqual(await mp.evaluate(() => getApp().globalData.testNetworkCalls), []);
+  });
+  await check("takeout restrictions invalidate old references but keep removal available", async () => {
+    const state = createDefaultAppState();
+    state.preferences.excludedFoodIds = ["tomato"];
+    await fixture(state);
+    let takeout = await mp.route(TAKEOUT, "reLaunch");
+    let data = await mp.data(takeout);
+    assert.ok(data.matches.length > 0);
+    assert.equal([...data.matches, ...data.alternatives].some((item: any) => item.id.startsWith("shaxian")), false);
+    const id = data.matches[0].id;
+    await mp.tap(takeout, `.primary-button[data-id="${id}"]`);
+    await until(async () => (await stored()).takeout.selections.length === 1, "reference before allergen");
+    const saved = await stored();
+    saved.currentPlan = null; saved.history = []; saved.checkedFoodIdsByPlanId = {};
+    saved.preferences.allergens = ["milk"];
+    await mp.wx("setStorageSync", KEY, {schemaVersion: CURRENT_SCHEMA_VERSION, savedAt: new Date().toISOString(), data: saved});
+    takeout = await mp.route(TAKEOUT, "reLaunch"); data = await mp.data(takeout);
+    assert.ok(data.blockedReason); assert.equal(data.matches.length, 0);
+    assert.equal(data.alternatives.length, 0); assert.equal(data.hasSelection, true);
+    assert.ok(!data.selectedName.includes("蒸鱼"));
+    await screenshot("09-takeout-allergy");
+    await mp.tap(takeout, ".selection-card .wide-button");
+    await until(async () => (await stored()).takeout.selections.length === 0, "remove blocked reference");
+  });
+  await check("takeout migrates v2 data without replacing menu or shopping state", async () => {
+    const old = ensureInitialPlan(createDefaultAppState(), {date: "2026-09-08"}).state;
+    const {takeout: ignored, ...v2} = old;
+    await mp.wx("setStorageSync", KEY, {schemaVersion: 2, savedAt: "2026-09-08T00:00:00Z", data: v2});
+    const takeout = await mp.route(TAKEOUT, "reLaunch");
+    assert.equal((await mp.data(takeout)).errorMessage, "");
+    assert.equal((await mp.wx("getStorageSync", KEY)).schemaVersion, 3);
+    assert.deepEqual((await stored()).currentPlan, old.currentPlan);
+    assert.deepEqual((await stored()).takeout, {favoriteTemplateIds: [], selections: []});
+  });
   assert.equal(mp.exceptions.length, 0, "Unexpected app exception captured");
 } catch (error) {
   failure = error;
@@ -445,6 +528,7 @@ try {
   await writeFile(path.join(output, "report.json"), JSON.stringify({
     runId, info, checks, screenshots, restored,
     networkCheck: "Network API fault injection; physical phone offline test still required",
+    clipboardCheck: "Isolated clipboard mock verifies app copy/restore logic; real device clipboard still requires manual verification",
     exceptions: mp.exceptions, success: !failure && restored,
     error: failure ? String(failure) : undefined,
   }, null, 2));

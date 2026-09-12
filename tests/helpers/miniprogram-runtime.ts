@@ -18,6 +18,7 @@ export interface MiniProgramRuntime {
     getClipboardData: ReturnType<typeof vi.fn>;
     setClipboardData: ReturnType<typeof vi.fn>;
     switchTab: ReturnType<typeof vi.fn>;
+    navigateTo: ReturnType<typeof vi.fn>;
     pageScrollTo: ReturnType<typeof vi.fn>;
   };
   createPage<T extends RuntimePage>(): T;
@@ -113,6 +114,7 @@ export function installMiniProgramRuntime(): MiniProgramRuntime {
       return { errMsg: "setClipboardData:ok" };
     }),
     switchTab: vi.fn(async () => ({ errMsg: "switchTab:ok" })),
+    navigateTo: vi.fn(async () => ({ errMsg: "navigateTo:ok" })),
     pageScrollTo: vi.fn(async () => ({ errMsg: "pageScrollTo:ok" })),
   };
 

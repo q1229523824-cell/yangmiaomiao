@@ -206,7 +206,7 @@ Page({
       const confirmation = await wx.showModal({
         title: "恢复本地备份？",
         content:
-          "这会替换本小程序在当前设备保存的档案、偏好、菜单历史和购物勾选。备份不会上传网络。",
+          "这会替换本小程序在当前设备保存的档案、偏好、菜单历史、购物勾选及外卖收藏和参考。备份不会上传网络。",
         confirmText: "确认恢复",
         confirmColor: "#d49f00",
       });
@@ -380,7 +380,7 @@ Page({
     try {
       const result = await wx.showModal({
         title: "清除本地数据？",
-        content: "档案、普通偏好、过敏原过滤记录、菜单历史和购物勾选都会从这台设备删除。",
+        content: "档案、普通偏好、过敏原过滤记录、菜单历史、购物勾选及外卖收藏和参考都会从这台设备删除。",
         confirmText: "清除",
         confirmColor: "#d64545"
       });
